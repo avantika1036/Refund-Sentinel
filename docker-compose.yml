@@ -1,0 +1,36 @@
+# =============================================================================
+# Refund Sentinel — Docker Compose
+# Phase 0: PostgreSQL only.
+# The backend service will be added in a later phase.
+# =============================================================================
+
+services:
+
+  db:
+    image: postgres:16-alpine
+    container_name: refund_sentinel_db
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: refund_sentinel
+      POSTGRES_USER: sentinel
+      POSTGRES_PASSWORD: sentinel_dev_password
+
+    ports:
+      # Expose to host for local development and direct inspection.
+      # In production this port would not be exposed.
+      - "5432:5432"
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sentinel -d refund_sentinel"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  postgres_data:
+    driver: local
