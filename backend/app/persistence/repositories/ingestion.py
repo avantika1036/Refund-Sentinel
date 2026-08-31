@@ -54,6 +54,12 @@ class IngestionRepository:
         )
         return list(self._session.scalars(statement).all())
 
+    def get_by_event_id(self, event_id: EventId) -> IngestionRecordModel | None:
+        statement = select(IngestionRecordModel).where(
+            IngestionRecordModel.event_id == event_id.value
+        ).order_by(IngestionRecordModel.submission_ordinal)
+        return self._session.scalars(statement).first()
+
     def update(self, record: IngestionRecord) -> IngestionRecordModel:
         """Update the audit row for an existing submission, e.g. on promotion."""
         row = self.get(record.event_id, record.submission_ordinal)
