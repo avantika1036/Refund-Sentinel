@@ -114,8 +114,7 @@ test-int:
 
 .PHONY: seed-demo
 seed-demo:
-	@echo "[FUTURE] $(PYTHON) scripts/seed_demo.py"
-	@echo "Implement after Phase 3 (simulator)."
+	$(PYTHON) -m backend.app.simulator.cli
 
 .PHONY: gen-datasets
 gen-datasets:
