@@ -803,21 +803,28 @@ def test_sequence_ordinal_uniqueness_across_sessions() -> None:
 
 @pytest.mark.integration
 def test_concurrent_ordinal_reservation() -> None:
-    """Verify concurrent submissions reserve unique ordinals from PostgreSQL sequence."""
+    """Verify concurrent submissions reserve unique PostgreSQL sequence ordinals.
+
+    Concurrent completion order is intentionally nondeterministic. The durable
+    ordering guarantee is represented by submission_ordinal itself and can be
+    recovered explicitly from the database.
+    """
     payment, order, merchant, customer = (
         PaymentId.generate(),
         OrderId.generate(),
         MerchantId.generate(),
         CustomerId.generate(),
     )
-    
+
     event1 = payment_created(payment, order, merchant, customer)
     event2 = payment_created(payment, order, merchant, customer)
     event3 = payment_created(payment, order, merchant, customer)
-    
+
+    events = [event1, event2, event3]
+
     barrier = Barrier(3)
-    ordinals = []
-    failures = []
+    ordinals: list[int] = []
+    failures: list[BaseException] = []
 
     def submit(event: PaymentCreatedEvent) -> None:
         try:
@@ -832,22 +839,40 @@ def test_concurrent_ordinal_reservation() -> None:
         Thread(target=submit, args=(event2,)),
         Thread(target=submit, args=(event3,)),
     ]
-    
+
     for thread in threads:
         thread.start()
+
     for thread in threads:
         thread.join()
 
     try:
         assert failures == [], f"Unexpected failures: {failures}"
-        
-        # Verify all ordinals are unique
-        assert len(ordinals) == len(set(ordinals)), "Concurrent ordinals must be unique"
-        
-        # Verify ordinals are in durable order
-        sorted_ordinals = sorted(ordinals)
-        assert ordinals == sorted_ordinals, "Ordinals should reflect submission order"
+
+        # PostgreSQL sequence values must be unique across concurrent sessions.
+        assert len(ordinals) == 3
+        assert len(ordinals) == len(set(ordinals))
+
+        with SessionLocal() as session:
+            records = (
+                session.query(IngestionRecordModel)
+                .filter(
+                    IngestionRecordModel.event_id.in_(
+                        [event.envelope.event_id.value for event in events]
+                    )
+                )
+                .order_by(IngestionRecordModel.submission_ordinal)
+                .all()
+            )
+
+        # Every successful submission must have a durable audit record.
+        assert len(records) == 3
+
+        persisted_ordinals = [record.submission_ordinal for record in records]
+
+        # Durable ordering is explicitly recoverable from submission_ordinal.
+        assert persisted_ordinals == sorted(ordinals)
+
     finally:
-        cleanup_event(event1.envelope.event_id)
-        cleanup_event(event2.envelope.event_id)
-        cleanup_event(event3.envelope.event_id)
+        for event in events:
+            cleanup_event(event.envelope.event_id)
