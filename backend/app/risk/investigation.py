@@ -1,15 +1,18 @@
 """Case-level investigation orchestration.
 
-Combines risk assessment, operational decision, and financial exposure
-into a single investigation result for a refund and its connected
-customer component.
+Combines risk assessment, operational decision, financial exposure,
+and optional machine-learning prediction into a single investigation
+result for a refund and its connected customer component.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-from backend.app.domain.identifiers import RefundId
+from backend.app.domain.identifiers import (
+    CustomerId,
+    RefundId,
+)
 from backend.app.finance.exposure import (
     FinancialExposure,
     compute_financial_exposure,
@@ -21,6 +24,10 @@ from backend.app.graph.components import (
     ConnectedComponentExtractor,
 )
 from backend.app.graph.model import NodeType
+from backend.app.ml.inference import (
+    MLInferenceService,
+    MLPrediction,
+)
 from backend.app.risk.assessment import (
     RiskAssessment,
     RiskAssessor,
@@ -37,13 +44,14 @@ class Investigation:
 
     Combines:
 
-    - risk assessment and underlying evidence
+    - risk assessment and underlying deterministic evidence
     - operational risk decision
     - financial exposure across the connected component
+    - optional machine-learning prediction
 
-    The investigation result is intended to provide a complete,
-    explainable view of why a refund should be prioritized and what
-    financial exposure may be associated with the related component.
+    The deterministic assessment remains the primary source of
+    explainable evidence. The ML prediction is an additional learned
+    signal and does not replace the deterministic decision.
     """
 
     assessment: RiskAssessment
@@ -52,17 +60,54 @@ class Investigation:
 
     component_refund_ids: tuple[RefundId, ...]
 
+    ml_prediction: MLPrediction | None = None
+
 
 class InvestigationService:
     """Build complete investigations from reconstructed system state.
 
-    This service is a composition layer. It intentionally delegates
-    feature extraction, risk assessment, decision classification, and
-    financial exposure calculation to their existing specialized
-    components.
+    This service is a composition layer. It delegates feature extraction,
+    risk assessment, decision classification, financial exposure
+    calculation, and optional ML inference to specialized components.
     """
 
-    def __init__(self, snapshot: ReconstructionSnapshot) -> None:
+    def __init__(
+        self,
+        snapshot: ReconstructionSnapshot,
+        *,
+        ml_inference_service: MLInferenceService | None = None,
+    ) -> None:
+        """Create an investigation service.
+
+        Args:
+            snapshot:
+                Reconstructed system state used by the investigation.
+
+            ml_inference_service:
+                Optional inference service used to generate an additional
+                ML prediction for each completed risk assessment.
+        """
+
+        if not isinstance(
+            snapshot,
+            ReconstructionSnapshot,
+        ):
+            raise TypeError(
+                "snapshot must be a ReconstructionSnapshot"
+            )
+
+        if (
+            ml_inference_service is not None
+            and not isinstance(
+                ml_inference_service,
+                MLInferenceService,
+            )
+        ):
+            raise TypeError(
+                "ml_inference_service must be an "
+                "MLInferenceService or None"
+            )
+
         self._snapshot = snapshot
 
         graph = StructuralGraphBuilder().build(snapshot)
@@ -75,16 +120,23 @@ class InvestigationService:
 
         self._decision_engine = RiskDecisionEngine()
 
+        self._ml_inference_service = (
+            ml_inference_service
+        )
+
     def investigate(
         self,
         refund_id: RefundId,
     ) -> Investigation:
         """Perform a complete investigation for one refund.
 
-        The investigation assesses the target refund, derives an
-        operational decision, and calculates risk-weighted financial
-        exposure across all refunds belonging to customers in the same
-        connected component.
+        The investigation:
+
+        1. Assesses deterministic risk evidence.
+        2. Produces an operational decision.
+        3. Optionally produces an ML prediction.
+        4. Finds all refunds in the connected component.
+        5. Calculates risk-weighted financial exposure.
 
         Args:
             refund_id:
@@ -104,9 +156,19 @@ class InvestigationService:
                 f"Refund {refund_id} not found in snapshot"
             )
 
-        assessment = self._risk_assessor.assess(refund_id)
+        assessment = self._risk_assessor.assess(
+            refund_id
+        )
 
-        decision = self._decision_engine.decide(assessment)
+        decision = self._decision_engine.decide(
+            assessment
+        )
+
+        ml_prediction = (
+            self._predict_with_ml(
+                assessment
+            )
+        )
 
         component = self._find_component(
             assessment.customer_id
@@ -127,11 +189,25 @@ class InvestigationService:
             decision=decision,
             exposure=exposure,
             component_refund_ids=component_refund_ids,
+            ml_prediction=ml_prediction,
+        )
+
+    def _predict_with_ml(
+        self,
+        assessment: RiskAssessment,
+    ) -> MLPrediction | None:
+        """Produce an ML prediction when inference is configured."""
+
+        if self._ml_inference_service is None:
+            return None
+
+        return self._ml_inference_service.predict(
+            assessment
         )
 
     def _find_component(
         self,
-        customer_id,
+        customer_id: CustomerId,
     ) -> ConnectedComponent:
         """Find the connected component containing a customer."""
 
