@@ -73,9 +73,11 @@ class RelationshipFeatureExtractor:
         return len(shared_types)
 
     def _compute_neighborhood_active_refund_count(self, component: ConnectedComponent) -> int:
-        """Count active refunds in the component neighborhood.
+        """Count unique customers in the component neighborhood with active refunds.
 
-        This counts all refunds associated with customers in the component.
+        Per PLAN.MD Section 7: "Count of customers within 1 hop sharing any attribute
+        who have active refund events". Returns the count of unique customers (not refund events)
+        in this component who have at least one refund.
         """
         # Get all customer IDs in this component
         customer_ids = set()
@@ -83,10 +85,10 @@ class RelationshipFeatureExtractor:
             if node.node_type == NodeType.CUSTOMER:
                 customer_ids.add(CustomerId.from_str(node.node_id))
 
-        # Count refunds for these customers
-        refund_count = 0
+        # Count unique customers with at least one refund
+        active_customers = set()
         for refund_state in self._snapshot.refunds.values():
             if refund_state.customer_id in customer_ids:
-                refund_count += 1
+                active_customers.add(refund_state.customer_id)
 
-        return refund_count
+        return len(active_customers)

@@ -587,3 +587,154 @@ def test_no_label_leakage() -> None:
     assert "simulator" not in str(individual.__dict__)
     assert "simulator" not in str(cluster.__dict__)
     assert "simulator" not in str(relationship.__dict__)
+
+
+def test_neighborhood_active_refund_count_counts_unique_customers() -> None:
+    """neighborhood_active_refund_count counts unique customers, not total refund events.
+    
+    This verifies the fix for the semantic contract: PLAN.MD Section 7 defines
+    neighborhood_active_refund_count as "Count of customers within 1 hop sharing
+    any attribute who have active refund events" (emphasis on unique customers).
+    """
+    customer1 = CustomerId.generate()
+    customer2 = CustomerId.generate()
+    customer3 = CustomerId.generate()
+    payment1 = PaymentId.generate()
+    payment2 = PaymentId.generate()
+    payment3 = PaymentId.generate()
+    order1 = OrderId.generate()
+    order2 = OrderId.generate()
+    order3 = OrderId.generate()
+    refund1a = RefundId.generate()
+    refund1b = RefundId.generate()
+    refund2 = RefundId.generate()
+    # customer3 has no refund
+
+    now = datetime.now(timezone.utc)
+
+    snapshot = ReconstructionSnapshot(
+        payments={
+            payment1: PaymentState(
+                payment_id=payment1,
+                merchant_id=CustomerId.generate(),
+                order_id=order1,
+                customer_id=customer1,
+                authorised_amount=Money.of_paise(1000),
+                status=PaymentStatus.CAPTURED,
+                created_at=UTCDateTime(value=now - timedelta(hours=3)),
+                captured_amount=Money.of_paise(1000),
+                captured_at=UTCDateTime(value=now - timedelta(hours=2)),
+            ),
+            payment2: PaymentState(
+                payment_id=payment2,
+                merchant_id=CustomerId.generate(),
+                order_id=order2,
+                customer_id=customer2,
+                authorised_amount=Money.of_paise(1000),
+                status=PaymentStatus.CAPTURED,
+                created_at=UTCDateTime(value=now - timedelta(hours=3)),
+                captured_amount=Money.of_paise(1000),
+                captured_at=UTCDateTime(value=now - timedelta(hours=2)),
+            ),
+            payment3: PaymentState(
+                payment_id=payment3,
+                merchant_id=CustomerId.generate(),
+                order_id=order3,
+                customer_id=customer3,
+                authorised_amount=Money.of_paise(1000),
+                status=PaymentStatus.CAPTURED,
+                created_at=UTCDateTime(value=now - timedelta(hours=3)),
+                captured_amount=Money.of_paise(1000),
+                captured_at=UTCDateTime(value=now - timedelta(hours=2)),
+            ),
+        },
+        refunds={
+            # Customer1 has TWO refunds
+            refund1a: RefundState(
+                refund_id=refund1a,
+                payment_id=payment1,
+                merchant_id=CustomerId.generate(),
+                customer_id=customer1,
+                order_id=order1,
+                requested_amount=Money.of_paise(500),
+                status=RefundStatus.PROCESSED,
+                requested_at=UTCDateTime(value=now),
+                processed_at=UTCDateTime(value=now),
+                processed_amount=Money.of_paise(500),
+            ),
+            refund1b: RefundState(
+                refund_id=refund1b,
+                payment_id=payment1,
+                merchant_id=CustomerId.generate(),
+                customer_id=customer1,
+                order_id=order1,
+                requested_amount=Money.of_paise(300),
+                status=RefundStatus.PROCESSED,
+                requested_at=UTCDateTime(value=now - timedelta(hours=1)),
+                processed_at=UTCDateTime(value=now - timedelta(hours=1)),
+                processed_amount=Money.of_paise(300),
+            ),
+            # Customer2 has ONE refund
+            refund2: RefundState(
+                refund_id=refund2,
+                payment_id=payment2,
+                merchant_id=CustomerId.generate(),
+                customer_id=customer2,
+                order_id=order2,
+                requested_amount=Money.of_paise(500),
+                status=RefundStatus.PROCESSED,
+                requested_at=UTCDateTime(value=now),
+                processed_at=UTCDateTime(value=now),
+                processed_amount=Money.of_paise(500),
+            ),
+            # Customer3 has NO refunds
+        },
+        orders={
+            order1: OrderState(
+                order_id=order1,
+                merchant_id=CustomerId.generate(),
+                customer_id=customer1,
+                amount=Money.of_paise(1000),
+                created_at=UTCDateTime(value=now - timedelta(hours=4)),
+            ),
+            order2: OrderState(
+                order_id=order2,
+                merchant_id=CustomerId.generate(),
+                customer_id=customer2,
+                amount=Money.of_paise(1000),
+                created_at=UTCDateTime(value=now - timedelta(hours=4)),
+            ),
+            order3: OrderState(
+                order_id=order3,
+                merchant_id=CustomerId.generate(),
+                customer_id=customer3,
+                amount=Money.of_paise(1000),
+                created_at=UTCDateTime(value=now - timedelta(hours=4)),
+            ),
+        },
+        reconstruction_ordinal=1,
+        event_count=5,
+    )
+
+    component = ConnectedComponent(
+        component_id=str(customer1),
+        nodes=frozenset([
+            GraphNode(str(customer1), NodeType.CUSTOMER),
+            GraphNode(str(customer2), NodeType.CUSTOMER),
+            GraphNode(str(customer3), NodeType.CUSTOMER),
+        ]),
+        edges=frozenset(),
+    )
+
+    from backend.app.risk.features.relationship import RelationshipFeatureExtractor
+
+    extractor = RelationshipFeatureExtractor(snapshot)
+    features = extractor.extract_for_component(component)
+
+    # Should count unique CUSTOMERS with refunds, not total refund events
+    # customer1: 2 refunds -> counted as 1 customer
+    # customer2: 1 refund -> counted as 1 customer
+    # customer3: 0 refunds -> not counted
+    # Total: 2 unique customers
+    assert features.neighborhood_active_refund_count == 2, \
+        f"Expected 2 unique customers with refunds, got {features.neighborhood_active_refund_count}"
