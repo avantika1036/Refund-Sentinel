@@ -29,7 +29,7 @@ def compute_behavioral_confirmation_score(cluster_features: ClusterFeatures) -> 
     - cluster_reason_similarity: [0, 1] - similarity of refund reason codes
 
     Formula: Geometric mean of the three signals
-    score = (alignment × burst × reason) ^ (1/3)
+    score = (alignment * burst * reason) ** (1 / 3)
 
     Rationale:
     Geometric mean enforces conjunctive logic: all three signals must be present
