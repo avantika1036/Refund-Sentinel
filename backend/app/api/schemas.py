@@ -68,3 +68,29 @@ class AssessmentResponse(BaseModel):
     rule_outputs: list[RuleEvidenceResponse]
 
     explanation: str
+
+
+class FinancialExposureResponse(BaseModel):
+    """Serialized financial exposure for an investigation."""
+
+    realized_suspicious_amount_paise: int = Field(
+        ge=0,
+    )
+
+    pending_refund_exposure_paise: int = Field(
+        ge=0,
+    )
+
+    remaining_refundable_exposure_paise: int = Field(
+        ge=0,
+    )
+
+
+class InvestigationResponse(BaseModel):
+    """Complete API response for a refund investigation."""
+
+    assessment: AssessmentResponse
+
+    exposure: FinancialExposureResponse
+
+    component_refund_ids: list[str]

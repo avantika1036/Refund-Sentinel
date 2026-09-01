@@ -8,6 +8,9 @@ from backend.app.api.routes.assessments import (
 from backend.app.api.routes.health import (
     router as health_router,
 )
+from backend.app.api.routes.investigations import (
+    router as investigations_router,
+)
 
 
 app = FastAPI(
@@ -22,3 +25,5 @@ app = FastAPI(
 app.include_router(health_router)
 
 app.include_router(assessments_router)
+
+app.include_router(investigations_router)

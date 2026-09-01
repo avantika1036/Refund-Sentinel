@@ -41,3 +41,17 @@ def test_invalid_refund_id_returns_bad_request() -> None:
     assert response.json() == {
         "detail": "Invalid refund ID format",
     }
+
+
+def test_invalid_investigation_refund_id_returns_bad_request() -> None:
+    """Investigation endpoint rejects malformed refund identifiers."""
+
+    response = client.get(
+        "/api/v1/investigations/not-a-valid-uuid"
+    )
+
+    assert response.status_code == 400
+
+    assert response.json() == {
+        "detail": "Invalid refund ID format",
+    }
