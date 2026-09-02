@@ -31,5 +31,9 @@ class Settings(BaseSettings):
     train_seed: int = 100
     eval_seed: int = 200
 
+    ml_model_path: str = ""
+
+    ml_classification_threshold: float = 0.5
+
 
 settings = Settings()

@@ -16,7 +16,7 @@ confuse financial value with behavioral risk.
 
 from __future__ import annotations
 
-from dataclasses import fields, is_dataclass
+from dataclasses import dataclass, fields, is_dataclass
 from typing import Any
 
 from backend.app.risk.assessment import RiskAssessment
@@ -26,7 +26,20 @@ class FeatureConstructionError(ValueError):
     """Raised when a feature object cannot be converted to numeric values."""
 
 
-def build_feature_vector(assessment: RiskAssessment) -> dict[str, float]:
+@dataclass(frozen=True)
+class FeatureVector:
+    """Structured feature vector for ML inference.
+
+    Attributes:
+        feature_names: Ordered tuple of feature names.
+        values: Ordered list of numeric feature values.
+    """
+
+    feature_names: tuple[str, ...]
+    values: list[float]
+
+
+def build_feature_vector(assessment: RiskAssessment) -> FeatureVector:
     """Build a deterministic numeric feature vector from a risk assessment.
 
     The vector contains only numeric fields from the three feature groups:
@@ -44,37 +57,44 @@ def build_feature_vector(assessment: RiskAssessment) -> dict[str, float]:
         assessment: Completed risk assessment containing extracted features.
 
     Returns:
-        Mapping of stable feature names to numeric values.
+        FeatureVector with ordered feature names and values.
 
     Raises:
         FeatureConstructionError: If a supported feature field contains an
             unsupported value type.
     """
 
-    feature_vector: dict[str, float] = {}
+    feature_dict: dict[str, float] = {}
 
-    feature_vector.update(
+    feature_dict.update(
         _extract_numeric_fields(
             prefix="individual",
             value=assessment.individual_features,
         )
     )
 
-    feature_vector.update(
+    feature_dict.update(
         _extract_numeric_fields(
             prefix="cluster",
             value=assessment.cluster_features,
         )
     )
 
-    feature_vector.update(
+    feature_dict.update(
         _extract_numeric_fields(
             prefix="relationship",
             value=assessment.relationship_features,
         )
     )
 
-    return feature_vector
+    # Convert to ordered structure for ML inference
+    feature_names = tuple(sorted(feature_dict.keys()))
+    values = [feature_dict[name] for name in feature_names]
+
+    return FeatureVector(
+        feature_names=feature_names,
+        values=values,
+    )
 
 
 def build_feature_matrix(

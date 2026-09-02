@@ -9,9 +9,12 @@ from backend.app.api.schemas import (
     AssessmentResponse,
     FinancialExposureResponse,
     InvestigationResponse,
+    MLPredictionResponse,
     RiskScoreResponse,
     RuleEvidenceResponse,
 )
+from backend.app.config import settings
+from backend.app.ml.runtime import create_ml_inference_service
 from backend.app.domain.identifiers import RefundId
 from backend.app.persistence.database import get_db
 from backend.app.persistence.reconstruction import ReconstructionService
@@ -50,8 +53,15 @@ def get_investigation(
             detail=f"Refund {refund_id} was not found",
         )
 
+    ml_inference_service = (
+    create_ml_inference_service(
+        settings
+    )
+)
+
     investigation = InvestigationService(
-        snapshot
+        snapshot,
+        ml_inference_service=ml_inference_service,
     ).investigate(parsed_refund_id)
 
     assessment = investigation.assessment
@@ -59,6 +69,18 @@ def get_investigation(
     exposure = investigation.exposure
 
     return InvestigationResponse(
+        ml_prediction=(
+        None
+        if investigation.ml_prediction is None
+        else MLPredictionResponse(
+            probability=(
+                investigation.ml_prediction.probability
+            ),
+            is_high_risk=(
+                investigation.ml_prediction.is_high_risk
+            ),
+        )
+    ),
         assessment=AssessmentResponse(
             refund_id=str(assessment.refund_id),
             customer_id=str(assessment.customer_id),

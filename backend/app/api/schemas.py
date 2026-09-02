@@ -86,6 +86,17 @@ class FinancialExposureResponse(BaseModel):
     )
 
 
+class MLPredictionResponse(BaseModel):
+    """Serialized machine-learning prediction."""
+
+    probability: float = Field(
+        ge=0.0,
+        le=1.0,
+    )
+
+    is_high_risk: bool
+
+
 class InvestigationResponse(BaseModel):
     """Complete API response for a refund investigation."""
 
@@ -94,3 +105,5 @@ class InvestigationResponse(BaseModel):
     exposure: FinancialExposureResponse
 
     component_refund_ids: list[str]
+
+    ml_prediction: MLPredictionResponse | None = None
