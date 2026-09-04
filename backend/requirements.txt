@@ -19,8 +19,8 @@ uvicorn[standard]==0.30.*
 # Data validation and settings
 # pydantic v2 is required. pydantic-settings reads from .env files.
 # =============================================================================
-pydantic==2.7.*
-pydantic-settings==2.3.*
+pydantic==2.10.*
+pydantic-settings==2.6.*
 
 
 # =============================================================================
@@ -31,7 +31,7 @@ pydantic-settings==2.3.*
 # for better performance if libpq is available on the host.
 # =============================================================================
 sqlalchemy==2.0.*
-psycopg[binary]==3.1.*
+psycopg[binary]==3.2.*
 alembic==1.13.*
 
 
