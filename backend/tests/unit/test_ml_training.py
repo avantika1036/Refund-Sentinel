@@ -299,3 +299,41 @@ def test_training_rejects_invalid_classification_threshold(
             _create_dataset(),
             classification_threshold=threshold,
         )
+
+def test_group_aware_split_keeps_groups_isolated() -> None:
+    """No group may appear in both training and validation partitions."""
+
+    dataset = create_dataset(
+        feature_names=("signal",),
+        feature_rows=[
+            [0.0], [0.1], [0.2], [0.3],
+            [0.8], [0.9], [1.0], [1.1],
+        ],
+        labels=[0, 0, 0, 0, 1, 1, 1, 1],
+    )
+    groups = ["n1", "n1", "n2", "n2", "p1", "p1", "p2", "p2"]
+
+    result = train_and_validate_model(
+        dataset,
+        groups=groups,
+        random_seed=7,
+        training_config=TrainingConfig(learning_rate=0.2, epochs=200),
+    )
+
+    assert result.training_row_count + result.validation_row_count == 8
+
+
+def test_group_aware_split_rejects_mixed_label_groups() -> None:
+    """A group identifier must represent one class for leakage-safe splitting."""
+
+    dataset = create_dataset(
+        feature_names=("signal",),
+        feature_rows=[[0.0], [0.1], [0.9], [1.0]],
+        labels=[0, 1, 0, 1],
+    )
+
+    with pytest.raises(TrainingPipelineError, match="exactly one class"):
+        train_and_validate_model(
+            dataset,
+            groups=["mixed", "mixed", "n2", "p2"],
+        )

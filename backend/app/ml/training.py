@@ -12,6 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from math import isfinite
 from random import Random
+from typing import Sequence
 
 from backend.app.ml.dataset import MLDataset, create_dataset
 from backend.app.ml.model import (
@@ -185,6 +186,7 @@ def train_and_validate_model(
     random_seed: int = 42,
     training_config: TrainingConfig | None = None,
     classification_threshold: float = 0.5,
+    groups: Sequence[str] | None = None,
 ) -> TrainingPipelineResult:
     """Train and validate a logistic refund-risk model.
 
@@ -210,6 +212,11 @@ def train_and_validate_model(
         classification_threshold:
             Probability threshold used for validation classification.
 
+        groups:
+            Optional group identifier for every dataset row. When supplied, all
+            rows from the same group are kept in the same partition to prevent
+            scenario/entity leakage between training and validation.
+
     Returns:
         Complete training pipeline result.
 
@@ -228,13 +235,27 @@ def train_and_validate_model(
         classification_threshold
     )
 
-    training_indices, validation_indices = (
-        _stratified_split_indices(
-            labels=dataset.labels,
-            validation_fraction=validation_fraction,
-            random_seed=random_seed,
+    if groups is None:
+        training_indices, validation_indices = (
+            _stratified_split_indices(
+                labels=dataset.labels,
+                validation_fraction=validation_fraction,
+                random_seed=random_seed,
+            )
         )
-    )
+    else:
+        normalized_groups = _validate_groups(
+            groups=groups,
+            row_count=dataset.row_count,
+        )
+        training_indices, validation_indices = (
+            _group_stratified_split_indices(
+                labels=dataset.labels,
+                groups=normalized_groups,
+                validation_fraction=validation_fraction,
+                random_seed=random_seed,
+            )
+        )
 
     training_dataset = _subset_dataset(
         dataset=dataset,
@@ -414,6 +435,114 @@ def _split_indices(
         "should not be called directly"
     )
 
+
+
+def _validate_groups(
+    *,
+    groups: Sequence[str],
+    row_count: int,
+) -> tuple[str, ...]:
+    """Validate optional leakage-control group identifiers."""
+
+    if isinstance(groups, (str, bytes)):
+        raise TypeError("groups must be a sequence of non-empty strings")
+
+    normalized = tuple(groups)
+
+    if len(normalized) != row_count:
+        raise TrainingPipelineError(
+            "Number of groups must match the dataset row count"
+        )
+
+    for index, group in enumerate(normalized):
+        if not isinstance(group, str):
+            raise TypeError(
+                f"groups[{index}] must be a string"
+            )
+        if not group.strip():
+            raise TrainingPipelineError(
+                f"groups[{index}] must not be empty"
+            )
+
+    return normalized
+
+
+def _group_stratified_split_indices(
+    *,
+    labels: tuple[int, ...],
+    groups: tuple[str, ...],
+    validation_fraction: float,
+    random_seed: int,
+) -> tuple[list[int], list[int]]:
+    """Split by whole groups while retaining both classes in both partitions.
+
+    A group is intentionally required to contain one ground-truth class. This
+    matches scenario/entity groups used by the training script and makes it
+    impossible for one cluster's examples to leak into validation.
+    """
+
+    group_to_indices: dict[str, list[int]] = {}
+    group_to_label: dict[str, int] = {}
+
+    for index, (label, group) in enumerate(zip(labels, groups)):
+        existing_label = group_to_label.get(group)
+        if existing_label is not None and existing_label != label:
+            raise TrainingPipelineError(
+                "Each group must contain examples from exactly one class"
+            )
+        group_to_label[group] = label
+        group_to_indices.setdefault(group, []).append(index)
+
+    groups_by_label: dict[int, list[str]] = {0: [], 1: []}
+    for group, label in group_to_label.items():
+        groups_by_label[label].append(group)
+
+    for label, class_groups in groups_by_label.items():
+        if len(class_groups) < 2:
+            class_name = "positive" if label == 1 else "negative"
+            raise TrainingPipelineError(
+                f"Group-aware splitting requires at least 2 {class_name} groups"
+            )
+
+    rng = Random(random_seed)
+    training_indices: list[int] = []
+    validation_indices: list[int] = []
+
+    for label in (0, 1):
+        class_groups = list(groups_by_label[label])
+        rng.shuffle(class_groups)
+        target_rows = max(1, round(
+            sum(len(group_to_indices[group]) for group in class_groups)
+            * validation_fraction
+        ))
+
+        validation_groups: list[str] = []
+        validation_rows = 0
+        for group in class_groups[:-1]:
+            if validation_rows < target_rows:
+                validation_groups.append(group)
+                validation_rows += len(group_to_indices[group])
+
+        if not validation_groups:
+            validation_groups.append(class_groups[0])
+
+        validation_group_set = set(validation_groups)
+        for group in class_groups:
+            destination = (
+                validation_indices
+                if group in validation_group_set
+                else training_indices
+            )
+            destination.extend(group_to_indices[group])
+
+    if not training_indices or not validation_indices:
+        raise TrainingPipelineError(
+            "Group-aware split produced an empty partition"
+        )
+
+    rng.shuffle(training_indices)
+    rng.shuffle(validation_indices)
+    return training_indices, validation_indices
 
 def _stratified_split_indices(
     *,

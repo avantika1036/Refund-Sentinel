@@ -171,22 +171,27 @@ def test_invalid_labels_are_rejected(
         )
 
 
-@pytest.mark.parametrize(
-    "invalid_value",
-    [
-        math.nan,
-        math.inf,
-        -math.inf,
-    ],
-)
-def test_non_finite_feature_values_are_rejected(
+def test_nan_feature_values_are_allowed_for_preprocessing() -> None:
+    """Raw datasets may carry NaN until training-time imputation."""
+
+    dataset = create_dataset(
+        feature_names=("feature_a",),
+        feature_rows=((math.nan,),),
+        labels=(1,),
+    )
+
+    assert math.isnan(dataset.feature_rows[0][0])
+
+
+@pytest.mark.parametrize("invalid_value", [math.inf, -math.inf])
+def test_infinite_feature_values_are_rejected(
     invalid_value: float,
 ) -> None:
-    """NaN and infinite feature values cannot enter a dataset."""
+    """Infinities are invalid even though NaN represents missing data."""
 
     with pytest.raises(
         ValueError,
-        match="Feature values must be finite",
+        match="must not be infinite",
     ):
         create_dataset(
             feature_names=("feature_a",),

@@ -12,7 +12,7 @@ that they form a consistent training dataset.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from math import isfinite
+from math import isinf
 from typing import Sequence
 
 
@@ -35,7 +35,7 @@ class MLDataset:
         - The dataset contains at least one row.
         - Feature names are non-empty and unique.
         - Every row has exactly ``len(feature_names)`` values.
-        - Every feature value is finite.
+        - Feature values may be finite or NaN (missing); infinities are rejected.
         - Labels are binary integers: 0 or 1.
         - The number of labels equals the number of feature rows.
     """
@@ -96,9 +96,9 @@ class MLDataset:
 
                 numeric_value = float(value)
 
-                if not isfinite(numeric_value):
+                if isinf(numeric_value):
                     raise ValueError(
-                        "Feature values must be finite "
+                        "Feature values must not be infinite "
                         f"(row={row_index}, column={feature_index})"
                     )
 

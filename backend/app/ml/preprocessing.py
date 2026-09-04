@@ -1,20 +1,21 @@
 """ML preprocessing for Refund Sentinel.
 
-Transforms raw numeric feature matrices into finite, model-ready values.
+The feature pipeline can contain missing numeric values and features with very
+ different numeric ranges (for example cluster size, hours, and rates).  A
+ logistic-regression model is sensitive to those ranges, so this preprocessor
+ performs two fitted steps using training data only:
 
-The feature construction layer represents missing numeric values as NaN and
-adds explicit ``*_is_missing`` indicator features. This module learns
-replacement values from training data and uses those values consistently for
-future transformations.
+1. Median imputation for missing numeric values.
+2. Per-feature standardization with a zero-mean, unit-scale transform.
 
-The preprocessor deliberately does not perform scaling. Scaling requirements
-depend on the model family and should remain explicit in the training layer.
+The fitted statistics are persisted with the model and reused unchanged during
+inference.  Constant columns use a scale of 1.0 so they remain finite.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from math import isnan
+from math import isfinite, isnan, sqrt
 from statistics import median
 from typing import Sequence
 
@@ -25,49 +26,53 @@ class PreprocessingError(ValueError):
 
 @dataclass(frozen=True)
 class MLPreprocessor:
-    """Fitted missing-value preprocessor.
-
-    ``feature_names`` defines the exact schema the preprocessor was fitted on.
-
-    ``replacement_values`` contains one replacement value for each feature
-    column. Values are learned from the training data only.
-    """
+    """Fitted imputation and standardization state."""
 
     feature_names: tuple[str, ...]
     replacement_values: tuple[float, ...]
+    means: tuple[float, ...] = ()
+    scales: tuple[float, ...] = ()
 
     def __post_init__(self) -> None:
-        if not self.feature_names:
+        width = len(self.feature_names)
+
+        if width == 0:
             raise PreprocessingError(
                 "Preprocessor must contain at least one feature name"
             )
 
-        if len(self.feature_names) != len(self.replacement_values):
+        if len(self.replacement_values) != width:
             raise PreprocessingError(
                 "Feature names and replacement values must have "
                 "the same length"
             )
 
         if len(self.feature_names) != len(set(self.feature_names)):
+            raise PreprocessingError("Feature names must be unique")
+
+        # Empty statistics are accepted only for legacy artifacts and are
+        # normalized to an identity scaling transform.
+        means = self.means or tuple(0.0 for _ in range(width))
+        scales = self.scales or tuple(1.0 for _ in range(width))
+
+        if len(means) != width or len(scales) != width:
             raise PreprocessingError(
-                "Feature names must be unique"
+                "Feature names, means, and scales must have the same length"
             )
 
         for value in self.replacement_values:
-            if isinstance(value, bool) or not isinstance(
-                value,
-                (int, float),
-            ):
-                raise TypeError(
-                    "Replacement values must be numeric"
-                )
+            _validate_finite_statistic(value, "Replacement values")
 
-            numeric_value = float(value)
+        for value in means:
+            _validate_finite_statistic(value, "Means")
 
-            if isnan(numeric_value):
-                raise PreprocessingError(
-                    "Replacement values must not be NaN"
-                )
+        for value in scales:
+            numeric_value = _validate_finite_statistic(value, "Scales")
+            if numeric_value <= 0.0:
+                raise PreprocessingError("Scales must be greater than zero")
+
+        object.__setattr__(self, "means", tuple(float(v) for v in means))
+        object.__setattr__(self, "scales", tuple(float(v) for v in scales))
 
     @classmethod
     def fit(
@@ -76,57 +81,33 @@ class MLPreprocessor:
         feature_names: Sequence[str],
         feature_rows: Sequence[Sequence[float]],
     ) -> "MLPreprocessor":
-        """Fit replacement values from training feature rows.
-
-        Missing values are represented by NaN. For each feature column, the
-        median of the non-missing training values is used as the replacement.
-
-        If an entire column is missing, its replacement value defaults to 0.0.
-
-        Args:
-            feature_names:
-                Ordered feature schema.
-
-            feature_rows:
-                Training feature rows containing finite numeric values or NaN.
-
-        Returns:
-            A fitted immutable preprocessor.
-        """
+        """Fit imputation and scaling statistics from training rows only."""
 
         normalized_names = tuple(feature_names)
-
         if not normalized_names:
             raise PreprocessingError(
                 "Cannot fit a preprocessor without feature names"
             )
-
         if not feature_rows:
             raise PreprocessingError(
                 "Cannot fit a preprocessor without feature rows"
             )
 
-        expected_width = len(normalized_names)
-
-        columns: list[list[float]] = [
-            []
-            for _ in range(expected_width)
-        ]
+        width = len(normalized_names)
+        columns: list[list[float]] = [[] for _ in range(width)]
 
         for row_index, row in enumerate(feature_rows):
-            if len(row) != expected_width:
+            if len(row) != width:
                 raise PreprocessingError(
                     f"Feature row {row_index} has {len(row)} values "
-                    f"but {expected_width} were expected"
+                    f"but {width} were expected"
                 )
-
             for column_index, value in enumerate(row):
                 numeric_value = _validate_feature_value(
                     value=value,
                     row_index=row_index,
                     column_index=column_index,
                 )
-
                 if not isnan(numeric_value):
                     columns[column_index].append(numeric_value)
 
@@ -135,9 +116,37 @@ class MLPreprocessor:
             for column in columns
         )
 
+        imputed_columns: list[list[float]] = []
+        for column_index, column in enumerate(columns):
+            replacement = replacement_values[column_index]
+            # Missing rows are represented by the learned replacement value.
+            # Include those imputed values when fitting the exact transform
+            # used by the model.
+            values = list(column)
+            missing_count = len(feature_rows) - len(column)
+            if missing_count:
+                values.extend([replacement] * missing_count)
+            imputed_columns.append(values)
+
+        means = tuple(
+            sum(column) / len(column)
+            for column in imputed_columns
+        )
+
+        scales: list[float] = []
+        for column, mean in zip(imputed_columns, means):
+            variance = sum(
+                (value - mean) ** 2
+                for value in column
+            ) / len(column)
+            scale = sqrt(variance)
+            scales.append(scale if scale > 1e-12 else 1.0)
+
         return cls(
             feature_names=normalized_names,
             replacement_values=replacement_values,
+            means=means,
+            scales=tuple(scales),
         )
 
     def transform(
@@ -146,45 +155,46 @@ class MLPreprocessor:
         feature_names: Sequence[str],
         feature_rows: Sequence[Sequence[float]],
     ) -> list[list[float]]:
-        """Transform feature rows into finite model-ready values.
-
-        The incoming feature schema must exactly match the schema used during
-        fitting. NaN values are replaced using the corresponding learned
-        replacement value.
-        """
+        """Impute and standardize rows using fitted training statistics."""
 
         normalized_names = tuple(feature_names)
-
         if normalized_names != self.feature_names:
             raise PreprocessingError(
                 "Feature schema does not match the fitted preprocessor"
             )
 
-        expected_width = len(self.feature_names)
+        width = len(self.feature_names)
         transformed_rows: list[list[float]] = []
 
         for row_index, row in enumerate(feature_rows):
-            if len(row) != expected_width:
+            if len(row) != width:
                 raise PreprocessingError(
                     f"Feature row {row_index} has {len(row)} values "
-                    f"but {expected_width} were expected"
+                    f"but {width} were expected"
                 )
 
             transformed_row: list[float] = []
-
             for column_index, value in enumerate(row):
                 numeric_value = _validate_feature_value(
                     value=value,
                     row_index=row_index,
                     column_index=column_index,
                 )
-
                 if isnan(numeric_value):
-                    transformed_row.append(
-                        self.replacement_values[column_index]
+                    numeric_value = self.replacement_values[column_index]
+
+                standardized = (
+                    (numeric_value - self.means[column_index])
+                    / self.scales[column_index]
+                )
+
+                if not isfinite(standardized):
+                    raise PreprocessingError(
+                        "Standardized feature value must be finite "
+                        f"(row={row_index}, column={column_index})"
                     )
-                else:
-                    transformed_row.append(numeric_value)
+
+                transformed_row.append(standardized)
 
             transformed_rows.append(transformed_row)
 
@@ -212,21 +222,25 @@ def _validate_feature_value(
 ) -> float:
     """Validate and normalize one raw feature value."""
 
-    if isinstance(value, bool) or not isinstance(
-        value,
-        (int, float),
-    ):
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise TypeError(
             "Feature values must be numeric "
             f"(row={row_index}, column={column_index})"
         )
 
     numeric_value = float(value)
-
     if numeric_value == float("inf") or numeric_value == float("-inf"):
         raise PreprocessingError(
             "Feature values must not be infinite "
             f"(row={row_index}, column={column_index})"
         )
+    return numeric_value
 
+
+def _validate_finite_statistic(value: object, label: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise TypeError(f"{label} must be numeric")
+    numeric_value = float(value)
+    if not isfinite(numeric_value):
+        raise PreprocessingError(f"{label} must be finite")
     return numeric_value

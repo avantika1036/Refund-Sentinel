@@ -19,6 +19,7 @@ from __future__ import annotations
 from dataclasses import dataclass, fields, is_dataclass
 from typing import Any
 
+from backend.app.domain.enums import RefundReasonCode
 from backend.app.risk.assessment import RiskAssessment
 
 
@@ -87,6 +88,12 @@ def build_feature_vector(assessment: RiskAssessment) -> FeatureVector:
         )
     )
 
+    feature_dict.update(
+        _extract_refund_reason_features(
+            assessment.individual_features.refund_reason_code
+        )
+    )
+
     # Convert to ordered structure for ML inference
     feature_names = tuple(sorted(feature_dict.keys()))
     values = [feature_dict[name] for name in feature_names]
@@ -142,6 +149,34 @@ def build_feature_matrix(
         )
 
     return feature_names, rows
+
+
+
+def _extract_refund_reason_features(reason_code: object) -> dict[str, float]:
+    """Encode the categorical refund reason with a fixed one-hot schema.
+
+    The generic numeric extractor intentionally ignores strings.  The previous
+    implementation accidentally emitted a reason feature only when the value
+    was missing, which made the inference schema depend on runtime data.
+    Keeping a fixed feature for every supported reason makes the schema stable
+    for both training and production inference.
+    """
+
+    normalized = None
+    if reason_code is not None:
+        normalized = str(
+            getattr(reason_code, "value", reason_code)
+        ).strip().lower()
+
+    extracted: dict[str, float] = {}
+    for reason in RefundReasonCode:
+        name = f"individual_refund_reason_{reason.value}"
+        extracted[name] = float(normalized == reason.value)
+
+    extracted["individual_refund_reason_is_missing"] = float(
+        normalized is None or normalized not in {r.value for r in RefundReasonCode}
+    )
+    return extracted
 
 
 def _extract_numeric_fields(

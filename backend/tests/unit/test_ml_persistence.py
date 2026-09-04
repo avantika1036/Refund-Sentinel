@@ -108,7 +108,7 @@ def test_saved_artifact_is_valid_json(
         )
     )
 
-    assert payload["artifact_version"] == 1
+    assert payload["artifact_version"] == 2
 
     assert payload["model"]["feature_names"] == [
         "risk_signal",

@@ -47,10 +47,12 @@ def test_transform_replaces_nan_values() -> None:
         ],
     )
 
-    assert transformed == [
-        [3.0, 20.0],
-        [7.0, 30.0],
-    ]
+    assert transformed[0] == pytest.approx(
+        [0.0, -0.6123724356957945]
+    )
+    assert transformed[1] == pytest.approx(
+        [2.449489742783178, 0.0]
+    )
 
 
 def test_fit_does_not_modify_original_rows() -> None:

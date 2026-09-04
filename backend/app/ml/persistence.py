@@ -25,7 +25,8 @@ class ModelPersistenceError(ValueError):
     """Raised when a persisted ML model artifact is invalid or unsafe."""
 
 
-_ARTIFACT_VERSION = 1
+_ARTIFACT_VERSION = 2
+_SUPPORTED_ARTIFACT_VERSIONS = {1, 2}
 
 
 @dataclass(frozen=True)
@@ -275,6 +276,12 @@ def _bundle_to_payload(
             "replacement_values": list(
                 bundle.preprocessor.replacement_values
             ),
+            "means": list(
+                bundle.preprocessor.means
+            ),
+            "scales": list(
+                bundle.preprocessor.scales
+            ),
         },
     }
 
@@ -289,9 +296,9 @@ def _payload_to_bundle(
             "Model artifact root must be an object"
         )
 
-    _validate_exact_keys(
+    _validate_required_keys(
         payload,
-        expected_keys={
+        required_keys={
             "artifact_version",
             "model",
             "preprocessor",
@@ -309,7 +316,7 @@ def _payload_to_bundle(
             "artifact_version must be an integer"
         )
 
-    if artifact_version != _ARTIFACT_VERSION:
+    if artifact_version not in _SUPPORTED_ARTIFACT_VERSIONS:
         raise ModelPersistenceError(
             f"Unsupported artifact version: "
             f"{artifact_version}"
@@ -324,6 +331,7 @@ def _payload_to_bundle(
 
     preprocessor = _payload_to_preprocessor(
         preprocessor_payload,
+        artifact_version=artifact_version,
     )
 
     try:
@@ -393,6 +401,8 @@ def _payload_to_model(
 
 def _payload_to_preprocessor(
     payload: object,
+    *,
+    artifact_version: int,
 ) -> MLPreprocessor:
     """Reconstruct a validated MLPreprocessor from JSON data."""
 
@@ -401,12 +411,16 @@ def _payload_to_preprocessor(
             "preprocessor must be an object"
         )
 
+    expected_keys = {
+        "feature_names",
+        "replacement_values",
+    }
+    if artifact_version >= 2:
+        expected_keys.update({"means", "scales"})
+
     _validate_exact_keys(
         payload,
-        expected_keys={
-            "feature_names",
-            "replacement_values",
-        },
+        expected_keys=expected_keys,
         context="preprocessor",
     )
 
@@ -420,12 +434,24 @@ def _payload_to_preprocessor(
         context="preprocessor.replacement_values",
     )
 
+    means: list[float] = []
+    scales: list[float] = []
+    if artifact_version >= 2:
+        means = _parse_numeric_list(
+            payload["means"],
+            context="preprocessor.means",
+        )
+        scales = _parse_numeric_list(
+            payload["scales"],
+            context="preprocessor.scales",
+        )
+
     try:
         return MLPreprocessor(
             feature_names=tuple(feature_names),
-            replacement_values=tuple(
-                replacement_values
-            ),
+            replacement_values=tuple(replacement_values),
+            means=tuple(means),
+            scales=tuple(scales),
         )
     except (
         TypeError,
@@ -475,6 +501,33 @@ def _validate_exact_keys(
             f"{context} contains unexpected keys: "
             f"{unexpected}"
         )
+
+
+def _validate_required_keys(
+    payload: dict[str, Any],
+    *,
+    required_keys: set[str],
+    context: str,
+) -> None:
+    """Require an artifact object to contain at least the required keys.
+
+    Unlike ``_validate_exact_keys``, this function allows additional
+    optional keys (e.g. ``training_metadata``) to coexist alongside the
+    required ones without raising an error.
+    """
+
+    actual_keys = set(payload)
+
+    missing_keys = required_keys - actual_keys
+
+    if missing_keys:
+        missing = ", ".join(sorted(missing_keys))
+
+        raise ModelPersistenceError(
+            f"{context} is missing required keys: "
+            f"{missing}"
+        )
+
 
 
 def _parse_string_list(
