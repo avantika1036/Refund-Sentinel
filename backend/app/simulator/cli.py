@@ -21,13 +21,40 @@ from backend.app.simulator.scenarios import (
     AS01_DENSE_COORDINATED_REFUND_RING,
     LL01_LEGITIMATE_FAMILY,
 )
+from argparse import ArgumentParser
+
+from sqlalchemy import text
+
+from backend.app.persistence.database import engine
 
 
 class SimulatorCLI:
+    @staticmethod
+    def reset_demo_data() -> None:
+        """Remove existing demo ledger data before generating a fresh dataset."""
+
+        print("Resetting existing demo data...")
+
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    """
+                    TRUNCATE TABLE
+                        pending_events,
+                        quarantine_records,
+                        ingestion_records,
+                        events
+                    RESTART IDENTITY;
+                    """
+                )
+            )
+
+        print("Existing demo data removed.")
+        
     """Command-line interface for simulator operations."""
 
     @staticmethod
-    def generate_demo() -> None:
+    def generate_demo(reset: bool = False) -> None:
         """Generate and load the demo dataset.
 
         Uses DEMO_SEED for deterministic output. Generates:
@@ -38,6 +65,8 @@ class SimulatorCLI:
         All events are loaded through the existing IngestionService.
         Ground-truth labels are stored separately.
         """
+
+        if reset: SimulatorCLI.reset_demo_data()
         seed = settings.demo_seed
         print(f"Generating demo dataset with seed: {seed}")
 
@@ -127,12 +156,34 @@ class SimulatorCLI:
 
 
 def main() -> NoReturn:
-    """Entry point for the simulator CLI."""
+    """Entry point for simulator operations."""
+
+    parser = ArgumentParser(
+        description="Generate the Refund Sentinel demo dataset."
+    )
+
+    parser.add_argument(
+        "--reset",
+        action="store_true",
+        help=(
+            "Remove existing event-ledger demo data before "
+            "generating the new dataset."
+        ),
+    )
+
+    args = parser.parse_args()
+
     try:
-        SimulatorCLI.generate_demo()
+        SimulatorCLI.generate_demo(
+            reset=args.reset,
+        )
         sys.exit(0)
-    except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
+
+    except Exception as exc:
+        print(
+            f"Error: {exc}",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
 

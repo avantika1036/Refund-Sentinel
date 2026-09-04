@@ -21,16 +21,12 @@ class ScenarioType(str, Enum):
 
     # Abuse scenarios
     AS01_DENSE_COORDINATED_REFUND_RING = "AS01_DENSE_COORDINATED_REFUND_RING"
-    # Future abuse scenarios
-    # AS02 = "AS02"
-    # AS03 = "AS03"
-    # AS04 = "AS04"
+    AS02_VELOCITY_REFUND_ABUSE = "AS02_VELOCITY_REFUND_ABUSE"
+    AS03_SHARED_PAYMENT_DEVICE_RING = "AS03_SHARED_PAYMENT_DEVICE_RING"
 
     # Legitimate lookalike scenarios
     LL01_LEGITIMATE_FAMILY = "LL01_LEGITIMATE_FAMILY"
-    # Future legitimate scenarios
-    # LL02 = "LL02"
-    # LL03 = "LL03"
+    LL02_FREQUENT_SHOPPER = "LL02_FREQUENT_SHOPPER"
 
     # Background population
     BACKGROUND = "BACKGROUND"

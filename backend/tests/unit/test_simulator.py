@@ -9,6 +9,9 @@ Verifies:
 6. Events pass through ingestion pipeline
 """
 
+from backend.app.domain.enums import RefundStatus
+from backend.app.finance.state_engine import FinancialStateEngine
+from backend.app.risk.assessment import RiskAssessor
 from backend.app.simulator.background import BackgroundPopulationGenerator
 from backend.app.simulator.labels import (
     GroundTruthLabel,
@@ -17,7 +20,10 @@ from backend.app.simulator.labels import (
 )
 from backend.app.simulator.scenarios import (
     AS01_DENSE_COORDINATED_REFUND_RING,
+    AS02_VELOCITY_REFUND_ABUSE,
+    AS03_SHARED_PAYMENT_DEVICE_RING,
     LL01_LEGITIMATE_FAMILY,
+    LL02_FREQUENT_SHOPPER,
 )
 
 
@@ -166,3 +172,62 @@ def test_scenario_extensibility() -> None:
 
     # Future scenarios can be added without breaking existing ones
     # This test verifies the enum structure supports extension
+
+
+def test_additional_scenarios_produce_valid_labels() -> None:
+    scenarios = [
+        (AS02_VELOCITY_REFUND_ABUSE(seed=7), ScenarioType.AS02_VELOCITY_REFUND_ABUSE, LabelClassification.ABUSE),
+        (AS03_SHARED_PAYMENT_DEVICE_RING(seed=8), ScenarioType.AS03_SHARED_PAYMENT_DEVICE_RING, LabelClassification.ABUSE),
+        (LL02_FREQUENT_SHOPPER(seed=9), ScenarioType.LL02_FREQUENT_SHOPPER, LabelClassification.LEGITIMATE),
+    ]
+
+    for generator, scenario_type, classification in scenarios:
+        output = generator.generate()
+        assert output.events
+        assert output.get_labels_for_scenario(scenario_type)
+        assert all(label.classification == classification for label in output.labels)
+
+
+def test_scenario_type_enum_includes_extended_training_diversity() -> None:
+    assert ScenarioType.AS02_VELOCITY_REFUND_ABUSE.value == "AS02_VELOCITY_REFUND_ABUSE"
+    assert ScenarioType.AS03_SHARED_PAYMENT_DEVICE_RING.value == "AS03_SHARED_PAYMENT_DEVICE_RING"
+    assert ScenarioType.LL02_FREQUENT_SHOPPER.value == "LL02_FREQUENT_SHOPPER"
+
+
+def test_as01_contains_pending_exposure_and_deterministic_rule_evidence() -> None:
+    """AS-01 should exercise both pending exposure and deterministic signals."""
+
+    output = AS01_DENSE_COORDINATED_REFUND_RING(seed=42).generate(
+        num_customers=3,
+        orders_per_customer=3,
+    )
+
+    snapshot = FinancialStateEngine().reconstruct_from(output.events)
+
+    assert not snapshot.anomalies
+
+    pending_refunds = [
+        refund
+        for refund in snapshot.refunds.values()
+        if refund.status == RefundStatus.REQUESTED
+    ]
+
+    assert pending_refunds
+
+    assessment = RiskAssessor(snapshot).assess(
+        pending_refunds[0].refund_id
+    )
+
+    assert assessment.risk_score.rule_signal_component > 0.0
+    assert assessment.risk_score.behavioral_confirmation_score > 0.0
+
+    triggered_rule_ids = {
+        output.rule_id.value
+        for output in assessment.rule_outputs
+        if output.triggered
+    }
+
+    assert "R01_RAPID_REFUND_AFTER_CAPTURE" in triggered_rule_ids
+    assert "R02_REFUND_BEFORE_DELIVERY" in triggered_rule_ids
+    assert "R03_FULL_REFUND" in triggered_rule_ids
+    assert "R06_MULTIPLE_ACCOUNTS_FLAGGED_IN_CLUSTER" in triggered_rule_ids
