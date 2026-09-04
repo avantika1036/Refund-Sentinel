@@ -346,6 +346,10 @@ class FinancialStateEngine:
                         p.order_id, p.merchant_id, p.customer_id, p.amount,
                         event.envelope.occurred_at,
                         shipping_address_id=p.shipping_address_id,
+                        event_history=[(
+                            event.envelope.occurred_at,
+                            event,
+                        )],
                     )
 
                 elif isinstance(event, PaymentCreatedEvent):
@@ -355,6 +359,10 @@ class FinancialStateEngine:
                     payments[p.payment_id] = PaymentState(
                         p.payment_id, p.merchant_id, p.order_id, p.customer_id,
                         p.amount, PaymentStatus.CREATED, event.envelope.occurred_at,
+                        event_history=[(
+                            event.envelope.occurred_at,
+                            event,
+                        )],
                     )
 
                 elif isinstance(event, PaymentCapturedEvent):
@@ -372,6 +380,10 @@ class FinancialStateEngine:
                     pay.captured_amount = p.captured_amount
                     pay.captured_at = p.captured_at
                     pay.applied_event_ids.add(event_id)
+                    pay.event_history.append((
+                        event.envelope.occurred_at,
+                        event,
+                    ))
 
                 elif isinstance(event, PaymentFailedEvent):
                     pay = payments.get(p.payment_id)
@@ -385,6 +397,10 @@ class FinancialStateEngine:
                     pay.failed_at = p.failed_at
                     pay.failure_reason = p.failure_reason
                     pay.applied_event_ids.add(event_id)
+                    pay.event_history.append((
+                        event.envelope.occurred_at,
+                        event,
+                    ))
 
                 elif isinstance(event, RefundRequestedEvent):
                     pay = payments.get(p.payment_id)
@@ -398,6 +414,10 @@ class FinancialStateEngine:
                         p.refund_id, p.payment_id, p.merchant_id, p.customer_id,
                         p.order_id, p.amount, RefundStatus.REQUESTED,
                         event.envelope.occurred_at,
+                        event_history=[(
+                            event.envelope.occurred_at,
+                            event,
+                        )],
                     )
 
                 elif isinstance(event, RefundCreatedEvent):
@@ -408,6 +428,10 @@ class FinancialStateEngine:
                     ref.status = RefundStatus.CREATED
                     ref.created_at = p.created_at
                     ref.applied_event_ids.add(event_id)
+                    ref.event_history.append((
+                        event.envelope.occurred_at,
+                        event,
+                    ))
 
                 elif isinstance(event, RefundProcessedEvent):
                     ref = refunds.get(p.refund_id)
@@ -429,6 +453,10 @@ class FinancialStateEngine:
                     ref.processed_amount = p.processed_amount
                     pay.cumulative_refunded = pay.cumulative_refunded + p.processed_amount
                     ref.applied_event_ids.add(event_id)
+                    ref.event_history.append((
+                        event.envelope.occurred_at,
+                        event,
+                    ))
 
                 elif isinstance(event, RefundFailedEvent):
                     ref = refunds.get(p.refund_id)
@@ -439,6 +467,10 @@ class FinancialStateEngine:
                     ref.failed_at = p.failed_at
                     ref.failure_reason = p.failure_reason
                     ref.applied_event_ids.add(event_id)
+                    ref.event_history.append((
+                        event.envelope.occurred_at,
+                        event,
+                    ))
 
                 elif isinstance(event, OrderShippedEvent):
                     order = orders.get(p.order_id)
@@ -447,6 +479,10 @@ class FinancialStateEngine:
                         continue
                     order.shipped_at = p.shipped_at
                     order.applied_event_ids.add(event_id)
+                    order.event_history.append((
+                        event.envelope.occurred_at,
+                        event,
+                    ))
 
                 elif isinstance(event, OrderDeliveredEvent):
                     order = orders.get(p.order_id)
@@ -455,6 +491,10 @@ class FinancialStateEngine:
                         continue
                     order.delivered_at = p.delivered_at
                     order.applied_event_ids.add(event_id)
+                    order.event_history.append((
+                        event.envelope.occurred_at,
+                        event,
+                    ))
 
             except (TypeError, ValueError) as exc:
                 anomalies.append(

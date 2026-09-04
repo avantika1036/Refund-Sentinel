@@ -48,7 +48,7 @@ class RelationshipFeatureExtractor:
 
         Shared attributes are those that connect multiple entities:
         - ADDRESS (shared via order shipping addresses)
-        - DEVICE (shared via payment context - not available in current graph)
+        - DEVICE (shared via payment context)
         """
         shared_types = set()
 
@@ -67,8 +67,27 @@ class RelationshipFeatureExtractor:
                 if count > 1:
                     shared_types.add("ADDRESS")
 
-        # Note: DEVICE relationships are not available in the current graph
-        # because device_id is not in the reconstructed state aggregates.
+        # Check for shared devices.
+        device_nodes = [
+            node
+            for node in component.nodes
+            if node.node_type == NodeType.DEVICE
+        ]
+        if device_nodes:
+            from collections import defaultdict
+
+            device_customer_count = defaultdict(set)
+            for edge in component.edges:
+                if edge.edge_type == EdgeType.CUSTOMER_USES_DEVICE:
+                    device_customer_count[edge.target_node_id].add(
+                        edge.source_node_id
+                    )
+
+            if any(
+                len(customer_ids) > 1
+                for customer_ids in device_customer_count.values()
+            ):
+                shared_types.add("DEVICE")
 
         return len(shared_types)
 

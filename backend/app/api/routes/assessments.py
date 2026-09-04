@@ -12,6 +12,7 @@ from backend.app.api.schemas import (
     RiskScoreResponse,
     RuleEvidenceResponse,
 )
+from backend.app.api.security import require_api_key
 from backend.app.domain.identifiers import RefundId
 from backend.app.persistence.database import get_db
 from backend.app.persistence.reconstruction import ReconstructionService
@@ -22,6 +23,7 @@ from backend.app.risk.decision import RiskDecisionEngine
 router = APIRouter(
     prefix="/api/v1/assessments",
     tags=["assessments"],
+    dependencies=[Depends(require_api_key)],
 )
 
 

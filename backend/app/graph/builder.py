@@ -169,12 +169,29 @@ class StructuralGraphBuilder:
                     )
                 )
 
-        # Build device nodes and edges from payment events
-        # Note: PaymentState doesn't include device_id, so we need to check
-        # the event history. For now, we'll skip device edges since they're
-        # not in the reconstructed state aggregates.
-        # This is a known limitation - device relationships would require
-        # access to the original events, not just the reconstructed state.
+        # Build device nodes and edges from retained payment event history.
+        # PaymentCreatedEvent carries the device identifier, while the
+        # aggregate itself intentionally stores the financial state only.
+        for payment_state in snapshot.payments.values():
+            for _, event in payment_state.event_history:
+                payload = getattr(event, "payload", None)
+                device_id = getattr(payload, "device_id", None)
+                if device_id is None:
+                    continue
+
+                device_node = GraphNode(
+                    node_id=str(device_id),
+                    node_type=NodeType.DEVICE,
+                )
+                nodes.add(device_node)
+                edges.add(
+                    GraphEdge(
+                        source_node_id=str(payment_state.customer_id),
+                        target_node_id=str(device_id),
+                        edge_type=EdgeType.CUSTOMER_USES_DEVICE,
+                    )
+                )
+                break
 
         # Convert to frozenset for immutability and deterministic ordering
         return StructuralGraph(
