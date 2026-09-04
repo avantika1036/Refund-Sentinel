@@ -1,10 +1,28 @@
-# =============================================================================
-# Refund Sentinel — Docker Compose
-# Phase 0: PostgreSQL only.
-# The backend service will be added in a later phase.
-# =============================================================================
-
 services:
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    container_name: refund_sentinel_backend
+
+    restart: unless-stopped
+
+    environment:
+      DATABASE_URL: postgresql+psycopg://sentinel:sentinel_dev_password@db:5432/refund_sentinel
+      APP_ENV: development
+      APP_API_KEY: replace_with_a_random_string_for_local_dev
+
+      ML_MODEL_PATH: "/app/backend/app/models/model.json"
+
+    ports:
+      - "8000:8000"
+
+    depends_on:
+      db:
+        condition: service_healthy
+
 
   db:
     image: postgres:16-alpine
@@ -17,8 +35,6 @@ services:
       POSTGRES_PASSWORD: sentinel_dev_password
 
     ports:
-      # Expose to host for local development and direct inspection.
-      # In production this port would not be exposed.
       - "5433:5432"
 
     volumes:
@@ -30,6 +46,7 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+
 
 volumes:
   postgres_data:
