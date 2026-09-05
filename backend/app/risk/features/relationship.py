@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from backend.app.domain.identifiers import CustomerId
+from backend.app.domain.value_objects import UTCDateTime
 from backend.app.finance.types import ReconstructionSnapshot
 from backend.app.graph.components import ConnectedComponent
 from backend.app.graph.model import EdgeType, NodeType
@@ -31,11 +32,16 @@ class RelationshipFeatureExtractor:
     def __init__(self, snapshot: ReconstructionSnapshot) -> None:
         self._snapshot = snapshot
 
-    def extract_for_component(self, component: ConnectedComponent) -> RelationshipFeatures:
-        """Extract relationship features for a connected component."""
+    def extract_for_component(
+        self,
+        component: ConnectedComponent,
+        as_of: UTCDateTime | None = None,
+    ) -> RelationshipFeatures:
+        """Extract relationship features for a connected component at a point in time."""
         shared_attribute_type_count = self._compute_shared_attribute_type_count(component)
         neighborhood_active_refund_count = self._compute_neighborhood_active_refund_count(
-            component
+            component,
+            as_of=as_of,
         )
 
         return RelationshipFeatures(
@@ -91,7 +97,11 @@ class RelationshipFeatureExtractor:
 
         return len(shared_types)
 
-    def _compute_neighborhood_active_refund_count(self, component: ConnectedComponent) -> int:
+    def _compute_neighborhood_active_refund_count(
+        self,
+        component: ConnectedComponent,
+        as_of: UTCDateTime | None = None,
+    ) -> int:
         """Count unique customers in the component neighborhood with active refunds.
 
         Per PLAN.MD Section 7: "Count of customers within 1 hop sharing any attribute
@@ -107,7 +117,10 @@ class RelationshipFeatureExtractor:
         # Count unique customers with at least one refund
         active_customers = set()
         for refund_state in self._snapshot.refunds.values():
-            if refund_state.customer_id in customer_ids:
+            if (
+                refund_state.customer_id in customer_ids
+                and (as_of is None or refund_state.requested_at.value <= as_of.value)
+            ):
                 active_customers.add(refund_state.customer_id)
 
         return len(active_customers)

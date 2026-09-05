@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from threading import Lock
 
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
@@ -20,6 +21,9 @@ from backend.app.persistence.repositories.quarantine import QuarantineRepository
 
 
 SessionFactory = Callable[[], Session]
+
+_sqlite_ordinal_lock = Lock()
+_sqlite_ordinal_counter: int | None = None
 
 
 class IngestionService:
@@ -46,18 +50,25 @@ class IngestionService:
         pending = PendingEventRepository(session)
         quarantine = QuarantineRepository(session)
         ordinal = self._next_submission_ordinal(session)
-        try:
-            with session.begin_nested():
-                saved = events.save(event)
-        except IntegrityError:
-            # The savepoint keeps the outer audit transaction usable after a
-            # concurrent winner inserted the same event_id.
-            session.expire_all()
-            existing = events.get(event.envelope.event_id)
-            if existing is None:
-                raise
-            outcome = EventSaveOutcome.DUPLICATE if existing.payload_hash == calculate_payload_hash(event) else EventSaveOutcome.CONFLICT
-            saved = type("Save", (), {"outcome": outcome, "event": existing})()
+        if session.get_bind().dialect.name == "sqlite":
+            # SQLite is the local/test backend. Avoid nested SAVEPOINT semantics
+            # here because the sqlite driver can implicitly alter transaction
+            # boundaries around DDL/locking. Production PostgreSQL keeps the
+            # savepoint path below for concurrent idempotency handling.
+            saved = events.save(event)
+        else:
+            try:
+                with session.begin_nested():
+                    saved = events.save(event)
+            except IntegrityError:
+                # The savepoint keeps the outer audit transaction usable after a
+                # concurrent winner inserted the same event_id.
+                session.expire_all()
+                existing = events.get(event.envelope.event_id)
+                if existing is None:
+                    raise
+                outcome = EventSaveOutcome.DUPLICATE if existing.payload_hash == calculate_payload_hash(event) else EventSaveOutcome.CONFLICT
+                saved = type("Save", (), {"outcome": outcome, "event": existing})()
 
         if saved.outcome is not EventSaveOutcome.INSERTED:
             result = self._audit_duplicate_or_conflict(event, ordinal, saved.outcome, ingestion)
@@ -104,5 +115,34 @@ class IngestionService:
 
     @staticmethod
     def _next_submission_ordinal(session: Session) -> int:
-        """Reserve a durable PostgreSQL sequence value; gaps are intentional."""
-        return session.execute(text("SELECT nextval(pg_get_serial_sequence('ingestion_records', 'id'))")).scalar_one()
+        """Reserve a durable submission ordinal with intentional gaps.
+
+        PostgreSQL uses a native sequence because sequence advancement is
+        non-transactional. SQLite has no comparable portable sequence
+        primitive, so local/test runs reserve an autoincrement row through an
+        independent committed transaction.
+        """
+        dialect = session.get_bind().dialect.name
+        if dialect == "postgresql":
+            return int(
+                session.execute(
+                    text(
+                        "SELECT nextval(pg_get_serial_sequence('ingestion_records', 'id'))"
+                    )
+                ).scalar_one()
+            )
+
+        # SQLite is a local/test backend, so reserve the ordinal outside the
+        # database transaction with a process-wide lock. This preserves the
+        # important sequence semantics (uniqueness + gaps on rollback) without
+        # taking a second SQLite write transaction while the ingestion
+        # transaction is active. PostgreSQL remains the production path above.
+        global _sqlite_ordinal_counter
+        with _sqlite_ordinal_lock:
+            if _sqlite_ordinal_counter is None:
+                current = session.execute(
+                    text("SELECT COALESCE(MAX(submission_ordinal), 0) FROM ingestion_records")
+                ).scalar_one()
+                _sqlite_ordinal_counter = int(current)
+            _sqlite_ordinal_counter += 1
+            return _sqlite_ordinal_counter

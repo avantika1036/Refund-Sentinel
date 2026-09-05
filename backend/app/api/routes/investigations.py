@@ -13,7 +13,12 @@ from sqlalchemy.orm import Session
 
 from backend.app.api.schemas import (
     AssessmentResponse,
+    CustomerProfileResponse,
+    EvidenceBundleResponse,
+    FeatureContributionResponse,
     FinancialExposureResponse,
+    GraphTopologyResponse,
+    InvestigationExplanationResponse,
     InvestigationQueueResponse,
     InvestigationResponse,
     MLPredictionResponse,
@@ -27,6 +32,8 @@ from backend.app.domain.identifiers import RefundId
 from backend.app.persistence.database import get_db
 from backend.app.persistence.reconstruction import ReconstructionService
 from backend.app.finance.exposure import compute_financial_exposure
+from backend.app.investigator.evidence import EvidenceBundleBuilder
+from backend.app.investigator.explanation import InvestigationExplanationService
 from backend.app.risk.investigation import InvestigationService
 
 
@@ -161,6 +168,7 @@ def get_investigation(
     db: Session = Depends(get_db),
 ) -> InvestigationResponse:
     """Perform a complete investigation for one refund."""
+    print(f"[API] get_investigation called for refund_id: {refund_id}")
 
     try:
         parsed_refund_id = RefundId.from_str(refund_id)
@@ -190,6 +198,87 @@ def get_investigation(
     assessment = investigation.assessment
     decision = investigation.decision
     exposure = investigation.exposure
+
+    # Build EvidenceBundle & Narrative explanation
+    bundle = EvidenceBundleBuilder.build(
+        snapshot=snapshot,
+        refund_id=parsed_refund_id,
+        assessment=assessment,
+        decision=decision,
+        exposure=exposure,
+        component_refund_ids=investigation.component_refund_ids,
+        ml_inference_service=ml_inference_service,
+    )
+    print(f"[API] Building explanation for refund {refund_id}")
+    explanation_service = InvestigationExplanationService()
+    explanation_result = explanation_service.explain(bundle)
+    print(f"[API] Explanation generated - is_llm_generated: {explanation_result.is_llm_generated}")
+
+    evidence_bundle_resp = EvidenceBundleResponse(
+        refund_id=bundle.refund_id,
+        assessed_at=bundle.assessed_at,
+        risk_level=bundle.risk_level,
+        action=bundle.action,
+        final_risk_score=bundle.final_risk_score,
+        behavioral_confirmation_score=bundle.behavioral_confirmation_score,
+        customer_profile=CustomerProfileResponse(
+            customer_id=bundle.customer_profile.customer_id,
+            email=bundle.customer_profile.email,
+            phone=bundle.customer_profile.phone,
+            created_at=bundle.customer_profile.created_at,
+            total_order_count=bundle.customer_profile.total_order_count,
+            total_refund_count=bundle.customer_profile.total_refund_count,
+            total_paid_paise=bundle.customer_profile.total_paid_paise,
+            total_refunded_paise=bundle.customer_profile.total_refunded_paise,
+            refund_rate_by_count=bundle.customer_profile.refund_rate_by_count,
+            refund_rate_by_amount=bundle.customer_profile.refund_rate_by_amount,
+        ),
+        financial_exposure=FinancialExposureResponse(
+            realized_suspicious_amount_paise=bundle.financial_exposure.realized_suspicious_amount_paise,
+            pending_refund_exposure_paise=bundle.financial_exposure.pending_refund_exposure_paise,
+            remaining_refundable_exposure_paise=bundle.financial_exposure.remaining_refundable_exposure_paise,
+        ),
+        graph_topology=GraphTopologyResponse(
+            cluster_id=bundle.graph_topology.cluster_id,
+            cluster_size=bundle.graph_topology.cluster_size,
+            connected_customer_ids=bundle.graph_topology.connected_customer_ids,
+            connected_refund_ids=bundle.graph_topology.connected_refund_ids,
+            shared_ip_addresses=bundle.graph_topology.shared_ip_addresses,
+            shared_shipping_addresses=bundle.graph_topology.shared_shipping_addresses,
+            shared_device_fingerprints=bundle.graph_topology.shared_device_fingerprints,
+            shared_bank_accounts=bundle.graph_topology.shared_bank_accounts,
+            is_multi_entity_cluster=bundle.graph_topology.is_multi_entity_cluster,
+        ),
+        rule_violations=[
+            RuleEvidenceResponse(
+                rule_id=rv.rule_id,
+                triggered=rv.triggered,
+                evidence_type=rv.evidence_type,
+                evidence_value=rv.evidence_value,
+                evidence_threshold=rv.evidence_threshold,
+                base_signal_weight=0.0,
+                notes=rv.notes,
+            )
+            for rv in bundle.rule_violations
+        ],
+        feature_contributions=[
+            FeatureContributionResponse(
+                feature_name=fc.feature_name,
+                value=fc.value,
+                direction=fc.direction,
+                description=fc.description,
+            )
+            for fc in bundle.feature_contributions
+        ],
+    )
+
+    explanation_resp = InvestigationExplanationResponse(
+        headline=explanation_result.headline,
+        narrative_summary=explanation_result.narrative_summary,
+        key_risk_drivers=explanation_result.key_risk_drivers,
+        suggested_action_rationale=explanation_result.suggested_action_rationale,
+        is_llm_generated=explanation_result.is_llm_generated,
+    )
 
     return InvestigationResponse(
         ml_prediction=(
@@ -267,4 +356,6 @@ def get_investigation(
             for component_refund_id
             in investigation.component_refund_ids
         ],
+        evidence_bundle=evidence_bundle_resp,
+        explanation_summary=explanation_resp,
     )

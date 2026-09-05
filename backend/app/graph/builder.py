@@ -7,6 +7,7 @@ the source state.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 from backend.app.domain.identifiers import (
@@ -17,6 +18,7 @@ from backend.app.domain.identifiers import (
     PaymentId,
     RefundId,
 )
+from backend.app.domain.value_objects import UTCDateTime
 from backend.app.finance.types import ReconstructionSnapshot
 from backend.app.graph.model import (
     EdgeType,
@@ -42,8 +44,12 @@ class StructuralGraphBuilder:
     - Produces deterministic output
     """
 
-    def build(self, snapshot: ReconstructionSnapshot) -> StructuralGraph:
-        """Build a structural graph from the reconstructed snapshot.
+    def build(
+        self,
+        snapshot: ReconstructionSnapshot,
+        as_of: UTCDateTime | None = None,
+    ) -> StructuralGraph:
+        """Build a structural graph from facts known at ``as_of``.
 
         Args:
             snapshot: The reconstructed financial state from the state engine.
@@ -53,9 +59,12 @@ class StructuralGraphBuilder:
         """
         nodes: set[GraphNode] = set()
         edges: set[GraphEdge] = set()
+        observation_time = as_of.value if as_of is not None else datetime.max.replace(tzinfo=timezone.utc)
 
         # Build nodes and edges from payments
         for payment_id, payment_state in snapshot.payments.items():
+            if payment_state.created_at.value > observation_time:
+                continue
             # Customer node
             customer_node = GraphNode(
                 node_id=str(payment_state.customer_id),
@@ -106,6 +115,8 @@ class StructuralGraphBuilder:
 
         # Build nodes and edges from refunds
         for refund_id, refund_state in snapshot.refunds.items():
+            if refund_state.requested_at.value > observation_time:
+                continue
             # Refund node
             refund_node = GraphNode(
                 node_id=str(refund_state.refund_id),
@@ -138,6 +149,8 @@ class StructuralGraphBuilder:
 
         # Build nodes and edges from orders (for address relationships)
         for order_id, order_state in snapshot.orders.items():
+            if order_state.created_at.value > observation_time:
+                continue
             # Order node (may already exist)
             order_node = GraphNode(
                 node_id=str(order_state.order_id),
@@ -173,7 +186,11 @@ class StructuralGraphBuilder:
         # PaymentCreatedEvent carries the device identifier, while the
         # aggregate itself intentionally stores the financial state only.
         for payment_state in snapshot.payments.values():
+            if payment_state.created_at.value > observation_time:
+                continue
             for _, event in payment_state.event_history:
+                if event.envelope.occurred_at.value > observation_time:
+                    continue
                 payload = getattr(event, "payload", None)
                 device_id = getattr(payload, "device_id", None)
                 if device_id is None:

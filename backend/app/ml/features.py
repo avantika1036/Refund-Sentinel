@@ -20,6 +20,7 @@ from dataclasses import dataclass, fields, is_dataclass
 from typing import Any
 
 from backend.app.domain.enums import RefundReasonCode
+from backend.app.config import settings
 from backend.app.risk.assessment import RiskAssessment
 
 
@@ -74,17 +75,35 @@ def build_feature_vector(assessment: RiskAssessment) -> FeatureVector:
         )
     )
 
+    # Graph/cluster evidence is a supporting signal, not a standalone fraud
+    # detector. When behavioral confirmation fails, structural features are
+    # zeroed before entering the ML model. This keeps the learned model
+    # consistent with the deterministic behavioral-confirmation gate.
+    cluster_features = assessment.cluster_features
+    relationship_features = assessment.relationship_features
+    confirmation_passed = (
+        assessment.behavioral_confirmation_score
+        >= settings.ml_behavioral_confirmation_threshold
+    )
+
+    if confirmation_passed:
+        gated_cluster = cluster_features
+        gated_relationship = relationship_features
+    else:
+        gated_cluster = _zero_dataclass_numeric_fields(cluster_features)
+        gated_relationship = _zero_dataclass_numeric_fields(relationship_features)
+
     feature_dict.update(
         _extract_numeric_fields(
             prefix="cluster",
-            value=assessment.cluster_features,
+            value=gated_cluster,
         )
     )
 
     feature_dict.update(
         _extract_numeric_fields(
             prefix="relationship",
-            value=assessment.relationship_features,
+            value=gated_relationship,
         )
     )
 
@@ -234,3 +253,19 @@ def _extract_numeric_fields(
         continue
 
     return extracted
+
+def _zero_dataclass_numeric_fields(value: Any) -> Any:
+    """Return a lightweight dataclass copy with numeric fields zeroed."""
+    if not is_dataclass(value):
+        raise FeatureConstructionError("Expected dataclass for gated feature group")
+
+    values: dict[str, Any] = {}
+    for field in fields(value):
+        original = getattr(value, field.name)
+        if isinstance(original, bool):
+            values[field.name] = False
+        elif isinstance(original, (int, float)):
+            values[field.name] = 0
+        else:
+            values[field.name] = original
+    return type(value)(**values)

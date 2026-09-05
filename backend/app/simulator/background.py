@@ -492,5 +492,5 @@ class BackgroundPopulationGenerator:
         """Generate a deterministic event ID."""
         import uuid
         # Use random int to seed UUID for determinism
-        seed_int = self._rng.randint(0, 2**32 - 1)
+        seed_int = self._rng.getrandbits(128)
         return EventId(uuid.UUID(int=seed_int))

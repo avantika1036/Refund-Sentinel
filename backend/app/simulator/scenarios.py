@@ -73,7 +73,7 @@ class Scenario:
     def _generate_event_id(self) -> EventId:
         """Generate a deterministic event ID."""
         import uuid
-        seed_int = self._rng.randint(0, 2**32 - 1)
+        seed_int = self._rng.getrandbits(128)
         return EventId(uuid.UUID(int=seed_int))
 
 
@@ -1098,15 +1098,16 @@ class AS04_IsolatedRefundChurn(_ParameterizedLifecycleScenario):
 class LL03_SharedHousehold(_ParameterizedLifecycleScenario):
     """LL-03: legitimate household sharing device and delivery address.
 
-    This held-out negative control intentionally resembles a structural cluster
-    while keeping refund behavior sparse and naturally distributed. It prevents
+    This held-out negative control intentionally resembles a large structural
+    cluster while keeping refund behavior sparse and naturally distributed. It
+    prevents
     a graph-only baseline from appearing perfect merely because every connected
     component is labelled abusive.
     """
 
     def generate(
         self,
-        num_customers: int = 4,
+        num_customers: int = 6,
         orders_per_customer: int = 7,
     ) -> SimulationOutput:
         merchant_id = MerchantId.generate()

@@ -17,15 +17,25 @@ from backend.app.api.routes.investigations import (
 from backend.app.api.routes.model_evaluation import (
     router as model_evaluation_router,
 )
+from backend.app.api.routes.webhooks import (
+    router as webhooks_router,
+)
 from backend.app.config import settings
 from backend.app.ml.runtime import (
     create_ml_inference_service,
 )
 
 
+from backend.app.persistence.database import engine
+from backend.app.persistence.models import Base
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Initialize application-wide runtime services."""
+    """Initialize application-wide runtime services and persistence schema."""
+
+    # Ensure all tables exist on startup
+    Base.metadata.create_all(bind=engine)
 
     app.state.ml_inference_service = (
         create_ml_inference_service(settings)
@@ -52,12 +62,6 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5000",
         "http://127.0.0.1:5000",
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:4173",
-        "http://127.0.0.1:4173",
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -71,3 +75,5 @@ app.include_router(assessments_router)
 app.include_router(model_evaluation_router)
 
 app.include_router(investigations_router)
+
+app.include_router(webhooks_router)

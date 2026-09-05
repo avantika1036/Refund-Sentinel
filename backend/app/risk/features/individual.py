@@ -32,6 +32,7 @@ class IndividualFeatures:
     capture_to_refund_latency_hrs: float | None
     order_to_refund_latency_hrs: float | None
     delivery_to_refund_latency_hrs: float | None
+    refund_requested_before_delivery: bool | None
 
     # Refund amount features
     refund_amount_fraction: float | None
@@ -76,6 +77,9 @@ class IndividualFeatureExtractor:
         delivery_to_refund_latency_hrs = self._compute_delivery_to_refund_latency(
             order_state, refund_state
         )
+        refund_requested_before_delivery = self._compute_refund_requested_before_delivery(
+            order_state, refund_state
+        )
 
         # Refund amount features
         refund_amount_fraction = self._compute_refund_amount_fraction(
@@ -105,6 +109,7 @@ class IndividualFeatureExtractor:
             capture_to_refund_latency_hrs=capture_to_refund_latency_hrs,
             order_to_refund_latency_hrs=order_to_refund_latency_hrs,
             delivery_to_refund_latency_hrs=delivery_to_refund_latency_hrs,
+            refund_requested_before_delivery=refund_requested_before_delivery,
             refund_amount_fraction=refund_amount_fraction,
             is_full_refund=is_full_refund,
             customer_refund_rate_90d=customer_refund_rate_90d,
@@ -140,8 +145,22 @@ class IndividualFeatureExtractor:
         """
         if order_state.delivered_at is None:
             return None
+        # The delivered timestamp is only a usable lifecycle fact when the
+        # delivery event had already happened at the refund-request time.
+        # A later delivery must not leak future timing into a point-in-time
+        # refund decision.
+        if order_state.delivered_at.value > refund_state.requested_at.value:
+            return None
         delta = refund_state.requested_at.value - order_state.delivered_at.value
         return delta.total_seconds() / 3600.0
+
+    def _compute_refund_requested_before_delivery(
+        self, order_state: OrderState, refund_state: RefundState
+    ) -> bool | None:
+        """Return whether delivery had not yet been confirmed at request time."""
+        if order_state.delivered_at is None:
+            return None
+        return order_state.delivered_at.value > refund_state.requested_at.value
 
     def _compute_refund_amount_fraction(
         self, payment_state: PaymentState, refund_state: RefundState

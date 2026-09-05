@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from backend.app.risk.decision import DecisionAction, RiskLevel
-from pydantic import BaseModel, ConfigDict, Field
 
 
 class HealthResponse(BaseModel):
@@ -87,6 +86,70 @@ class FinancialExposureResponse(BaseModel):
     )
 
 
+class CustomerProfileResponse(BaseModel):
+    """Serialized customer profile for investigation."""
+
+    customer_id: str
+    email: str | None = None
+    phone: str | None = None
+    created_at: str | None = None
+    total_order_count: int = 0
+    total_refund_count: int = 0
+    total_paid_paise: int = 0
+    total_refunded_paise: int = 0
+    refund_rate_by_count: float = 0.0
+    refund_rate_by_amount: float = 0.0
+
+
+class GraphTopologyResponse(BaseModel):
+    """Serialized graph cluster topology evidence."""
+
+    cluster_id: str
+    cluster_size: int = 1
+    connected_customer_ids: list[str] = Field(default_factory=list)
+    connected_refund_ids: list[str] = Field(default_factory=list)
+    shared_ip_addresses: list[str] = Field(default_factory=list)
+    shared_shipping_addresses: list[str] = Field(default_factory=list)
+    shared_device_fingerprints: list[str] = Field(default_factory=list)
+    shared_bank_accounts: list[str] = Field(default_factory=list)
+    is_multi_entity_cluster: bool = False
+
+
+class FeatureContributionResponse(BaseModel):
+    """Serialized feature signal contribution."""
+
+    feature_name: str
+    value: float
+    direction: str
+    description: str
+
+
+class EvidenceBundleResponse(BaseModel):
+    """Unified Section 9 Evidence Bundle."""
+
+    refund_id: str
+    assessed_at: str
+    risk_level: str
+    action: str
+    final_risk_score: float
+    behavioral_confirmation_score: float
+    customer_profile: CustomerProfileResponse
+    financial_exposure: FinancialExposureResponse
+    graph_topology: GraphTopologyResponse
+    rule_violations: list[RuleEvidenceResponse]
+    feature_contributions: list[FeatureContributionResponse]
+
+
+class InvestigationExplanationResponse(BaseModel):
+    """Synthesized investigation analyst explanation."""
+
+    headline: str
+    narrative_summary: str
+    key_risk_drivers: list[str]
+    suggested_action_rationale: str
+    is_llm_generated: bool = False
+
+
 class MLPredictionResponse(BaseModel):
     """Serialized machine-learning prediction."""
 
@@ -108,6 +171,10 @@ class InvestigationResponse(BaseModel):
     component_refund_ids: list[str]
 
     ml_prediction: MLPredictionResponse | None = None
+
+    evidence_bundle: EvidenceBundleResponse | None = None
+
+    explanation_summary: InvestigationExplanationResponse | None = None
 
 
 class QueueCaseResponse(BaseModel):
@@ -148,6 +215,28 @@ class InvestigationQueueResponse(BaseModel):
     metrics: QueueMetricsResponse
 
 
+
+class ComparativeBaselineMetricsResponse(BaseModel):
+    """One held-out benchmark baseline summary."""
+
+    precision: float = Field(ge=0.0, le=1.0)
+    recall: float = Field(ge=0.0, le=1.0)
+    f1_score: float = Field(ge=0.0, le=1.0)
+    accuracy: float = Field(ge=0.0, le=1.0)
+    true_positive: int = Field(ge=0)
+    true_negative: int = Field(ge=0)
+    false_positive: int = Field(ge=0)
+    false_negative: int = Field(ge=0)
+    review_volume: int = Field(ge=0)
+    # Primary benchmark exposure metric. This is measured abuse exposure
+    # captured by the operating point, not a claim of financial recovery.
+    abuse_exposure_captured_inr: float = Field(default=0.0, ge=0.0)
+    abuse_exposure_capture_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+    total_test_abuse_exposure_inr: float = Field(default=0.0, ge=0.0)
+    false_positive_flagged_amount_inr: float = Field(ge=0.0)
+    total_flagged_amount_inr: float = Field(ge=0.0)
+    operating_threshold: float | int | None = None
+
 class ModelEvaluationResponse(BaseModel):
     """Honest runtime model status and available evaluation metadata."""
 
@@ -157,8 +246,31 @@ class ModelEvaluationResponse(BaseModel):
 
     model_available: bool
     status: str
+
     artifact_version: int | None = None
-    feature_count: int | None = Field(default=None, ge=0)
+
+    feature_count: int | None = Field(
+        default=None,
+        ge=0,
+    )
+
     evaluation_metrics_available: bool
-    metrics: dict[str, float] = {}
+
+    metrics: dict[str, float] = Field(
+        default_factory=dict,
+    )
+
+    benchmark_available: bool = False
+
+    benchmark_summary: dict[
+        str,
+        ComparativeBaselineMetricsResponse,
+    ] = Field(
+        default_factory=dict,
+    )
+
+    benchmark_protocol: dict[str, object] = Field(
+        default_factory=dict,
+    )
+
     data_note: str

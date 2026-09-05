@@ -43,9 +43,27 @@ def _load_benchmark_results() -> tuple[
         if not isinstance(raw_summary, dict):
             return {}, {}
         benchmark_summary: dict[str, ComparativeBaselineMetricsResponse] = {}
+        total_test_exposure = payload.get("total_test_abuse_exposure_inr", 0.0)
+        if not isinstance(total_test_exposure, (int, float)):
+            total_test_exposure = 0.0
         for name, metrics in raw_summary.items():
             if not isinstance(metrics, dict):
                 continue
+            captured_exposure = metrics.get(
+                "abuse_exposure_captured_inr",
+                metrics.get("loss_prevented_inr", 0.0),
+            )
+            total_exposure = metrics.get(
+                "total_abuse_exposure_inr",
+                total_test_exposure,
+            )
+            capture_rate = metrics.get("abuse_exposure_capture_rate")
+            if not isinstance(capture_rate, (int, float)):
+                capture_rate = (
+                    float(captured_exposure) / float(total_exposure)
+                    if isinstance(total_exposure, (int, float)) and float(total_exposure) > 0
+                    else 0.0
+                )
             benchmark_summary[str(name)] = ComparativeBaselineMetricsResponse(
                 precision=metrics.get("precision", 0.0),
                 recall=metrics.get("recall", 0.0),
@@ -56,7 +74,9 @@ def _load_benchmark_results() -> tuple[
                 false_positive=metrics.get("false_positive", 0),
                 false_negative=metrics.get("false_negative", 0),
                 review_volume=metrics.get("review_volume", 0),
-                loss_prevented_inr=metrics.get("loss_prevented_inr", 0.0),
+                abuse_exposure_captured_inr=captured_exposure,
+                abuse_exposure_capture_rate=capture_rate,
+                total_test_abuse_exposure_inr=float(total_exposure),
                 false_positive_flagged_amount_inr=metrics.get(
                     "false_positive_flagged_amount_inr",
                     0.0,

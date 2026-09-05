@@ -6,7 +6,7 @@ Computes behavioral coordination features for structural clusters.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
 from backend.app.domain.identifiers import CustomerId, RefundId
@@ -41,21 +41,37 @@ class ClusterFeatureExtractor:
     def __init__(self, snapshot: ReconstructionSnapshot) -> None:
         self._snapshot = snapshot
 
-    def extract_for_component(self, component: ConnectedComponent) -> ClusterFeatures:
-        """Extract features for a connected component."""
-        # Get all customer IDs in this component
+    def extract_for_component(
+        self,
+        component: ConnectedComponent,
+        as_of: UTCDateTime | None = None,
+    ) -> ClusterFeatures:
+        """Extract cluster features using only evidence known at ``as_of``.
+
+        When ``as_of`` is omitted, the latest refund timestamp in the snapshot
+        is used for backwards compatibility with standalone unit tests.
+        Production assessments pass the target refund's request time so future
+        refunds cannot influence the current decision.
+        """
         customer_ids = self._get_customer_ids_in_component(component)
+        observation_time = self._resolve_as_of(as_of)
 
         cluster_size = len(customer_ids)
         cluster_refund_active_fraction = self._compute_refund_active_fraction(
-            customer_ids
+            customer_ids, observation_time
         )
         cluster_lifecycle_timing_alignment = self._compute_lifecycle_timing_alignment(
-            customer_ids
+            customer_ids, observation_time
         )
-        cluster_temporal_burst_score = self._compute_temporal_burst_score(customer_ids)
-        cluster_reason_similarity = self._compute_reason_similarity(customer_ids)
-        cluster_amount_concentration = self._compute_amount_concentration(customer_ids)
+        cluster_temporal_burst_score = self._compute_temporal_burst_score(
+            customer_ids, observation_time
+        )
+        cluster_reason_similarity = self._compute_reason_similarity(
+            customer_ids, observation_time
+        )
+        cluster_amount_concentration = self._compute_amount_concentration(
+            customer_ids, observation_time
+        )
 
         return ClusterFeatures(
             cluster_size=cluster_size,
@@ -76,7 +92,23 @@ class ClusterFeatureExtractor:
                 customer_ids.append(CustomerId.from_str(node.node_id))
         return customer_ids
 
-    def _compute_refund_active_fraction(self, customer_ids: list[CustomerId]) -> float:
+    def _resolve_as_of(self, as_of: UTCDateTime | None) -> UTCDateTime:
+        if as_of is not None:
+            return as_of
+
+        timestamps = [
+            refund.requested_at.value
+            for refund in self._snapshot.refunds.values()
+        ]
+        if not timestamps:
+            return UTCDateTime(value=datetime.now(timezone.utc))
+        return UTCDateTime(value=max(timestamps))
+
+    def _compute_refund_active_fraction(
+        self,
+        customer_ids: list[CustomerId],
+        as_of: UTCDateTime,
+    ) -> float:
         """Fraction of customers in cluster with active refunds."""
         if not customer_ids:
             return 0.0
@@ -85,6 +117,7 @@ class ClusterFeatureExtractor:
         for customer_id in customer_ids:
             has_refund = any(
                 refund.customer_id == customer_id
+                and refund.requested_at.value <= as_of.value
                 for refund in self._snapshot.refunds.values()
             )
             if has_refund:
@@ -92,7 +125,11 @@ class ClusterFeatureExtractor:
 
         return active_customers / len(customer_ids)
 
-    def _compute_lifecycle_timing_alignment(self, customer_ids: list[CustomerId]) -> float:
+    def _compute_lifecycle_timing_alignment(
+        self,
+        customer_ids: list[CustomerId],
+        as_of: UTCDateTime,
+    ) -> float:
         """Measure alignment of capture-to-refund latencies among active refunding members.
 
         Formula: 1 - (coefficient of variation of latencies)
@@ -102,7 +139,10 @@ class ClusterFeatureExtractor:
         # Collect latencies for all refunds in the cluster
         latencies = []
         for refund_state in self._snapshot.refunds.values():
-            if refund_state.customer_id in customer_ids:
+            if (
+                refund_state.customer_id in customer_ids
+                and refund_state.requested_at.value <= as_of.value
+            ):
                 payment_state = self._snapshot.payments.get(refund_state.payment_id)
                 if payment_state and payment_state.captured_at:
                     delta = (
@@ -126,7 +166,11 @@ class ClusterFeatureExtractor:
         alignment = max(0.0, 1.0 - cv)
         return min(1.0, alignment)
 
-    def _compute_temporal_burst_score(self, customer_ids: list[CustomerId]) -> float:
+    def _compute_temporal_burst_score(
+        self,
+        customer_ids: list[CustomerId],
+        as_of: UTCDateTime,
+    ) -> float:
         """Measure concentration of refund requests within a 48-hour window.
 
         Formula: max_refunds_in_48h / total_refunds
@@ -135,7 +179,10 @@ class ClusterFeatureExtractor:
         # Collect all refund timestamps for the cluster
         timestamps = []
         for refund_state in self._snapshot.refunds.values():
-            if refund_state.customer_id in customer_ids:
+            if (
+                refund_state.customer_id in customer_ids
+                and refund_state.requested_at.value <= as_of.value
+            ):
                 timestamps.append(refund_state.requested_at.value)
 
         if not timestamps:
@@ -161,7 +208,11 @@ class ClusterFeatureExtractor:
 
         return max_in_window / len(timestamps)
 
-    def _compute_reason_similarity(self, customer_ids: list[CustomerId]) -> float:
+    def _compute_reason_similarity(
+        self,
+        customer_ids: list[CustomerId],
+        as_of: UTCDateTime,
+    ) -> float:
         """Measure similarity of primary reason codes across cluster members.
 
         Formula: (count of most common reason) / (total refunds)
@@ -170,7 +221,10 @@ class ClusterFeatureExtractor:
         # Collect reason codes for all refunds in the cluster
         reason_codes = []
         for refund_state in self._snapshot.refunds.values():
-            if refund_state.customer_id in customer_ids:
+            if (
+                refund_state.customer_id in customer_ids
+                and refund_state.requested_at.value <= as_of.value
+            ):
                 # Extract reason code from event history
                 reason = self._extract_reason_code_from_state(refund_state)
                 if reason:
@@ -193,7 +247,11 @@ class ClusterFeatureExtractor:
                 return event.payload.reason_code.value
         return None
 
-    def _compute_amount_concentration(self, customer_ids: list[CustomerId]) -> float:
+    def _compute_amount_concentration(
+        self,
+        customer_ids: list[CustomerId],
+        as_of: UTCDateTime,
+    ) -> float:
         """Measure concentration of refund amounts using coefficient of variation.
 
         Formula: 1 - (coefficient of variation of refund amounts)
@@ -202,7 +260,10 @@ class ClusterFeatureExtractor:
         # Collect refund amounts for the cluster
         amounts = []
         for refund_state in self._snapshot.refunds.values():
-            if refund_state.customer_id in customer_ids:
+            if (
+                refund_state.customer_id in customer_ids
+                and refund_state.requested_at.value <= as_of.value
+            ):
                 amounts.append(refund_state.requested_amount.amount_paise)
 
         if len(amounts) < 2:

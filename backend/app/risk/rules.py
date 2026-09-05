@@ -123,13 +123,7 @@ class RuleEngine:
         features: IndividualFeatures,
         order_delivered_at: UTCDateTime | None,
     ) -> RuleOutput:
-        """R-02: Refund requested before delivery confirmation.
-
-        Trigger only when delivery data exists AND the refund was
-        requested before delivery.
-
-        Absence of delivery data does NOT trigger this rule.
-        """
+        """R-02: Refund requested before delivery confirmation."""
         if order_delivered_at is None:
             return RuleOutput(
                 rule_id=RuleId.R02_REFUND_BEFORE_DELIVERY,
@@ -141,21 +135,19 @@ class RuleEngine:
                 notes="Delivery data not available, rule not applicable",
             )
 
-        latency = features.delivery_to_refund_latency_hrs
-        triggered = latency is not None and latency < 0
+        triggered = features.refund_requested_before_delivery is True
 
         return RuleOutput(
             rule_id=RuleId.R02_REFUND_BEFORE_DELIVERY,
             triggered=triggered,
-            evidence_type=EvidenceType.LATENCY_HOURS,
-            evidence_value=latency,
-            evidence_threshold=0.0,
+            evidence_type=EvidenceType.BOOLEAN,
+            evidence_value=triggered,
+            evidence_threshold=None,
             base_signal_weight=self.R02_WEIGHT,
             notes=(
-                f"Delivery-to-refund latency: {latency} hours "
-                "(negative = before delivery)"
-                if latency is not None
-                else "Delivery-to-refund latency not available"
+                "Refund requested before delivery confirmation"
+                if triggered
+                else "Refund was not requested before delivery confirmation"
             ),
         )
 

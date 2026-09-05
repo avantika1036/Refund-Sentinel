@@ -20,11 +20,11 @@ if database_url.startswith("postgresql://"):
         1,
     )
 
-engine = create_engine(
-    database_url,
-    pool_pre_ping=True,
-    future=True,
-)
+engine_kwargs = {"pool_pre_ping": True, "future": True}
+if database_url.startswith("sqlite"):
+    engine_kwargs["connect_args"] = {"check_same_thread": False, "timeout": 30}
+
+engine = create_engine(database_url, **engine_kwargs)
 
 SessionLocal = sessionmaker(
     bind=engine,

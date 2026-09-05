@@ -85,8 +85,8 @@ class RiskAssessor:
     def __init__(self, snapshot: ReconstructionSnapshot) -> None:
         self._snapshot = snapshot
 
-        graph = StructuralGraphBuilder().build(snapshot)
-        self._components = ConnectedComponentExtractor().extract(graph)
+        self._graph_builder = StructuralGraphBuilder()
+        self._component_extractor = ConnectedComponentExtractor()
 
         self._individual_feature_extractor = IndividualFeatureExtractor(snapshot)
         self._cluster_feature_extractor = ClusterFeatureExtractor(snapshot)
@@ -117,20 +117,27 @@ class RiskAssessor:
             )
 
         customer_id = refund_state.customer_id
+        decision_time = refund_state.requested_at
 
-        component = self._find_component_for_customer(customer_id)
+        graph = self._graph_builder.build(self._snapshot, as_of=decision_time)
+        components = self._component_extractor.extract(graph)
+        component = self._find_component_for_customer(customer_id, components)
 
         individual_features = (
             self._individual_feature_extractor.extract_for_refund(refund_id)
         )
 
         cluster_features = (
-            self._cluster_feature_extractor.extract_for_component(component)
+            self._cluster_feature_extractor.extract_for_component(
+                component,
+                as_of=decision_time,
+            )
         )
 
         relationship_features = (
             self._relationship_feature_extractor.extract_for_component(
-                component
+                component,
+                as_of=decision_time,
             )
         )
 
@@ -165,12 +172,13 @@ class RiskAssessor:
     def _find_component_for_customer(
         self,
         customer_id: CustomerId,
+        components: list[ConnectedComponent],
     ) -> ConnectedComponent:
         """Find the connected component containing a customer."""
 
         customer_node_id = str(customer_id)
 
-        for component in self._components:
+        for component in components:
             if component.contains_node(customer_node_id):
                 return component
 
@@ -332,6 +340,7 @@ class RiskAssessor:
                     refund
                     for refund in self._snapshot.refunds.values()
                     if refund.customer_id == customer_id
+                    and refund.requested_at.value <= self._snapshot.refunds[target_refund_id].requested_at.value
                 ],
                 key=lambda refund: (
                     refund.requested_at.value,
@@ -343,7 +352,7 @@ class RiskAssessor:
                 member_rule_outputs[customer_id] = []
                 continue
 
-            representative_refund = customer_refunds[0]
+            representative_refund = customer_refunds[-1]
 
             member_features = (
                 self._individual_feature_extractor.extract_for_refund(
