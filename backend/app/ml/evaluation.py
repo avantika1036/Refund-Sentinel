@@ -236,6 +236,41 @@ def evaluate_model(
     )
 
 
+def compute_binary_metrics(
+    *,
+    y_true: Sequence[int],
+    y_pred: Sequence[int],
+) -> EvaluationMetrics:
+    """Compute binary classification metrics from true and predicted binary labels."""
+    if len(y_true) != len(y_pred):
+        raise EvaluationError("y_true and y_pred must have the same length")
+
+    tp = sum(1 for yt, yp in zip(y_true, y_pred) if yt == 1 and yp == 1)
+    tn = sum(1 for yt, yp in zip(y_true, y_pred) if yt == 0 and yp == 0)
+    fp = sum(1 for yt, yp in zip(y_true, y_pred) if yt == 0 and yp == 1)
+    fn = sum(1 for yt, yp in zip(y_true, y_pred) if yt == 1 and yp == 0)
+
+    cm = ConfusionMatrix(
+        true_positive=tp,
+        true_negative=tn,
+        false_positive=fp,
+        false_negative=fn,
+    )
+
+    accuracy = _safe_divide(numerator=tp + tn, denominator=cm.total)
+    precision = _safe_divide(numerator=tp, denominator=tp + fp)
+    recall = _safe_divide(numerator=tp, denominator=tp + fn)
+    f1_score = _safe_divide(numerator=2.0 * precision * recall, denominator=precision + recall)
+
+    return EvaluationMetrics(
+        accuracy=accuracy,
+        precision=precision,
+        recall=recall,
+        f1_score=f1_score,
+        confusion_matrix=cm,
+    )
+
+
 def _validate_threshold(
     threshold: float,
 ) -> None:

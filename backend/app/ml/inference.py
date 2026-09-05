@@ -7,6 +7,7 @@ fitted preprocessor, and produces a prediction from a trained model.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from math import isnan
 
 from backend.app.ml.features import build_feature_vector
 from backend.app.ml.persistence import PersistedModelBundle
@@ -52,6 +53,15 @@ class MLPrediction:
             "probability",
             probability,
         )
+
+
+@dataclass(frozen=True)
+class MLFeatureContribution:
+    """Signed local contribution of one standardized feature to the ML logit."""
+
+    feature_name: str
+    raw_value: float
+    contribution: float
 
 
 class MLInferenceService:
@@ -148,6 +158,44 @@ class MLInferenceService:
                 >= self._classification_threshold
             ),
         )
+
+    def explain_features(
+        self,
+        assessment: RiskAssessment,
+        *,
+        limit: int = 5,
+    ) -> list[MLFeatureContribution]:
+        """Return top local linear-model contributions for one assessment.
+
+        Contributions are coefficient × standardized feature value and are
+        therefore evidence about this exact prediction, not global importance.
+        """
+        if limit <= 0:
+            return []
+        vector = build_feature_vector(assessment)
+        self._validate_feature_schema(vector.feature_names)
+        processed = self._bundle.preprocessor.transform(
+            feature_names=vector.feature_names,
+            feature_rows=[vector.values],
+        )[0]
+        contributions = [
+            MLFeatureContribution(
+                feature_name=name,
+                raw_value=(0.0 if isinstance(raw, float) and isnan(raw) else float(raw)),
+                contribution=float(coefficient * value),
+            )
+            for name, raw, value, coefficient in zip(
+                vector.feature_names,
+                vector.values,
+                processed,
+                self._bundle.model.coefficients,
+            )
+        ]
+        return sorted(
+            contributions,
+            key=lambda item: abs(item.contribution),
+            reverse=True,
+        )[:limit]
 
     def _validate_feature_schema(
         self,
