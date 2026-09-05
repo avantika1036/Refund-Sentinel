@@ -115,7 +115,7 @@
 .brief-mark, .currency-mark, .signal-mark { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 7px; color: #5477db; background: #edf2ff; font-size: 15px; font-weight: 800; }
 .currency-mark { color: #c18b2d; background: #fff4dc; font-size: 17px; }
 .explanation-text { margin-top: 19px; color: #526177; font-size: 13px; line-height: 1.75; }
-.entity-strip { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 21px; border-top: 1px solid #edf0f5; }
+.entity-strip { display: grid; grid-template-columns: repeat(4, 1fr); margin-top: 21px; border-top: 1px solid #edf0f5; }
 .entity-strip div { min-width: 0; padding: 14px 10px 0 0; }
 .entity-strip div + div { padding-left: 13px; border-left: 1px solid #edf0f5; }
 .entity-strip span, .entity-strip strong { display: block; }

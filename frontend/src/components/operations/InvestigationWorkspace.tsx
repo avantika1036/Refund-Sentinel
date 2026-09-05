@@ -38,7 +38,7 @@ export function InvestigationWorkspace({ refundId, onBack, onSelectRelated }: In
   if (error) return <div className="empty-panel empty-panel--error"><span className="empty-icon">!</span><h2>Investigation unavailable</h2><p>{error.message}</p><button className="button button--secondary" onClick={onBack}>Back to queue</button><button className="button button--primary" onClick={() => void investigate(refundId)}>Retry</button></div>;
   if (!investigation) return null;
 
-  const { assessment, exposure, component_refund_ids: relatedRefunds, ml_prediction: mlPrediction } = investigation;
+  const { assessment, exposure, component_refund_ids: relatedRefunds, ml_prediction: mlPrediction, evidence_bundle: evidenceBundle } = investigation;
   const riskLevel = assessment.risk_level;
   return (
     <section className="investigation-page">
@@ -56,12 +56,44 @@ export function InvestigationWorkspace({ refundId, onBack, onSelectRelated }: In
 
       <div className="investigation-grid">
         <div className="investigation-main">
-          <article className="workspace-card explanation-card"><div className="card-heading"><div><p className="eyebrow">Analyst brief</p><h2>What is suspicious here?</h2></div><span className="brief-mark">↗</span></div><p className="explanation-text">{assessment.explanation}</p><div className="entity-strip"><div><span>Customer</span><strong>{shortId(assessment.customer_id)}</strong></div><div><span>Component</span><strong>{assessment.component_id}</strong></div><div><span>Action</span><strong>{assessment.action}</strong></div></div></article>
+          <article className="workspace-card explanation-card">
+            <div className="card-heading">
+              <div>
+                <p className="eyebrow">Analyst brief</p>
+                <h2>{investigation.explanation_summary?.headline || "What is suspicious here?"}</h2>
+              </div>
+              <span className="brief-mark">↗</span>
+            </div>
+            <p className="explanation-text">
+              {investigation.explanation_summary?.narrative_summary || assessment.explanation}
+            </p>
+            {investigation.explanation_summary?.key_risk_drivers && investigation.explanation_summary.key_risk_drivers.length > 0 && (
+              <div style={{ marginTop: "12px", marginBottom: "12px" }}>
+                <strong style={{ fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.05em", opacity: 0.8 }}>Key Risk Drivers:</strong>
+                <ul style={{ margin: "6px 0 0 18px", padding: 0, fontSize: "13px", lineHeight: "1.6" }}>
+                  {investigation.explanation_summary.key_risk_drivers.map((driver, idx) => (
+                    <li key={idx}>{driver}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {investigation.explanation_summary?.suggested_action_rationale && (
+              <p style={{ fontSize: "13px", fontStyle: "italic", opacity: 0.9, marginTop: "8px" }}>
+                💡 Recommendation: {investigation.explanation_summary.suggested_action_rationale}
+              </p>
+            )}
+            <div className="entity-strip">
+              <div><span>Customer</span><strong>{shortId(assessment.customer_id)}</strong></div>
+              <div><span>Component</span><strong>{assessment.component_id}</strong></div>
+              <div><span>Action</span><strong>{assessment.action}</strong></div>
+            </div>
+          </article>
           <article className="workspace-card evidence-register"><div className="card-heading"><div><p className="eyebrow">Evidence register</p><h2>Signals behind the score</h2></div><span className="evidence-count">{triggeredEvidence.length} triggered</span></div>{triggeredEvidence.length > 0 ? <div className="evidence-group"><div className="group-label group-label--alert">Triggered evidence</div>{triggeredEvidence.map((evidence) => <EvidenceRow key={evidence.rule_id} evidence={evidence} triggered />)}</div> : <div className="subtle-state">No deterministic rules triggered for this refund.</div>}<div className="evidence-group evidence-group--secondary"><button className="group-toggle" onClick={() => setShowAllEvidence((current) => !current)}><span>Evidence checked but not triggered</span><span>{showAllEvidence ? "Collapse ↑" : `${checkedEvidence.length} checks ↓`}</span></button>{showAllEvidence && checkedEvidence.map((evidence) => <EvidenceRow key={evidence.rule_id} evidence={evidence} triggered={false} />)}</div></article>
-          <article className="workspace-card"><div className="card-heading"><div><p className="eyebrow">Risk composition</p><h2>Score breakdown</h2></div></div><div className="score-breakdown"><ScoreBar label="Deterministic risk signal" value={assessment.risk_score.rule_signal_component} tone="red" /><ScoreBar label="Behavioral confirmation" value={assessment.risk_score.behavioral_confirmation_score} tone="amber" /><ScoreBar label="Cluster signal" value={assessment.risk_score.cluster_signal_component} tone="violet" />{mlPrediction && <ScoreBar label="ML probability" value={mlPrediction.probability} tone="blue" />}</div></article>
+          <article className="workspace-card"><div className="card-heading"><div><p className="eyebrow">Risk composition</p><h2>Score breakdown</h2></div></div><div className="score-breakdown"><ScoreBar label="Deterministic risk signal" value={assessment.risk_score.rule_signal_component} tone="red" /><ScoreBar label="Behavioral confirmation" value={assessment.risk_score.behavioral_confirmation_score} tone="amber" />{mlPrediction && <ScoreBar label="ML probability" value={mlPrediction.probability} tone="blue" />}</div></article>
+          {evidenceBundle && <article className="workspace-card"><div className="card-heading"><div><p className="eyebrow">Evidence bundle</p><h2>Customer, graph and model evidence</h2></div></div><div className="entity-strip"><div><span>Orders</span><strong>{evidenceBundle.customer_profile.total_order_count}</strong></div><div><span>Refunds</span><strong>{evidenceBundle.customer_profile.total_refund_count}</strong></div><div><span>Cluster size</span><strong>{evidenceBundle.graph_topology.cluster_size}</strong></div><div><span>Shared devices</span><strong>{evidenceBundle.graph_topology.shared_device_fingerprints.length}</strong></div></div><div className="evidence-group"><div className="group-label">Top feature contributions</div>{evidenceBundle.feature_contributions.map((feature) => <div className="evidence-row" key={feature.feature_name}><div className="evidence-row-top"><strong>{feature.feature_name}</strong><span className="evidence-state">{feature.direction}</span></div><p>{feature.description}</p><div className="evidence-values"><span>Contribution <b>{feature.value.toFixed(4)}</b></span></div></div>)}</div></article>}
         </div>
         <aside className="investigation-side">
-          <article className="workspace-card exposure-card"><div className="card-heading"><div><p className="eyebrow">Financial exposure</p><h2>Money at risk</h2></div><span className="currency-mark">₹</span></div><div className="exposure-list"><div><span>Realized suspicious amount</span><strong>{formatINR(exposure.realized_suspicious_amount_paise)}</strong></div><div><span>Pending refund exposure</span><strong>{formatINR(exposure.pending_refund_exposure_paise)}</strong></div><div><span>Remaining refundable</span><strong>{formatINR(exposure.remaining_refundable_exposure_paise)}</strong></div></div><p className="card-footnote">Calculated from the connected component and current risk score.</p></article>
+          <article className="workspace-card exposure-card"><div className="card-heading"><div><p className="eyebrow">Financial exposure</p><h2>Money at risk</h2></div><span className="currency-mark">₹</span></div><div className="exposure-list"><div><span>Realized suspicious amount</span><strong>{formatINR(exposure.realized_suspicious_amount_paise)}</strong></div><div><span>Pending refund exposure</span><strong>{formatINR(exposure.pending_refund_exposure_paise)}</strong></div><div><span>Remaining refundable</span><strong>{formatINR(exposure.remaining_refundable_exposure_paise)}</strong></div></div><p className="card-footnote">Calculated from the current reconstructed financial state of the connected component. Each exposure bucket is a distinct risk-weighted amount.</p></article>
           <article className="workspace-card related-card"><div className="card-heading"><div><p className="eyebrow">Network view</p><h2>Related refunds</h2></div><span className="connection-icon">⌘</span></div><p className="card-copy">Refunds connected through the same customer component.</p><div className="related-list">{relatedRefunds.map((relatedId) => <button key={relatedId} className={`related-item ${relatedId === assessment.refund_id ? "related-item--current" : ""}`} onClick={() => relatedId !== assessment.refund_id && onSelectRelated(relatedId)}><span className="related-status" /><span>{shortId(relatedId)}</span>{relatedId === assessment.refund_id ? <small>Current</small> : <span className="related-arrow">→</span>}</button>)}</div></article>
         </aside>
       </div>

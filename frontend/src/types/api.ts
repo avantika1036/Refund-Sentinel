@@ -62,12 +62,67 @@ export interface MLPredictionResponse {
   is_high_risk: boolean;
 }
 
+export interface CustomerProfileResponse {
+  customer_id: string;
+  email?: string | null;
+  phone?: string | null;
+  created_at?: string | null;
+  total_order_count: number;
+  total_refund_count: number;
+  total_paid_paise: number;
+  total_refunded_paise: number;
+  refund_rate_by_count: number;
+  refund_rate_by_amount: number;
+}
+
+export interface GraphTopologyResponse {
+  cluster_id: string;
+  cluster_size: number;
+  connected_customer_ids: string[];
+  connected_refund_ids: string[];
+  shared_ip_addresses: string[];
+  shared_device_fingerprints: string[];
+  shared_bank_accounts: string[];
+  is_multi_entity_cluster: boolean;
+}
+
+export interface FeatureContributionResponse {
+  feature_name: string;
+  value: number;
+  direction: string;
+  description: string;
+}
+
+export interface EvidenceBundleResponse {
+  refund_id: string;
+  assessed_at: string;
+  risk_level: string;
+  action: string;
+  final_risk_score: number;
+  behavioral_confirmation_score: number;
+  customer_profile: CustomerProfileResponse;
+  financial_exposure: FinancialExposureResponse;
+  graph_topology: GraphTopologyResponse;
+  rule_violations: RuleEvidenceResponse[];
+  feature_contributions: FeatureContributionResponse[];
+}
+
+export interface InvestigationExplanationResponse {
+  headline: string;
+  narrative_summary: string;
+  key_risk_drivers: string[];
+  suggested_action_rationale: string;
+  is_llm_generated: boolean;
+}
+
 // Investigation response
 export interface InvestigationResponse {
   assessment: AssessmentResponse;
   exposure: FinancialExposureResponse;
   component_refund_ids: string[];
   ml_prediction: MLPredictionResponse | null;
+  evidence_bundle?: EvidenceBundleResponse | null;
+  explanation_summary?: InvestigationExplanationResponse | null;
 }
 
 export interface QueueCaseResponse {
