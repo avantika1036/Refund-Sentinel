@@ -17,6 +17,8 @@ from backend.app.persistence.database import Base, SessionLocal, engine
 from backend.app.persistence.ingestion_service import IngestionService
 from backend.app.persistence.models import EventModel, IngestionRecordModel, PendingEventModel, QuarantineRecordModel
 
+POSTGRES_ONLY = pytest.mark.skipif(engine.dialect.name != "postgresql", reason="requires PostgreSQL transaction/concurrency semantics")
+
 
 def created(payment_id: PaymentId, order_id: OrderId, merchant_id: MerchantId, customer_id: CustomerId, *, event_id: EventId | None = None) -> PaymentCreatedEvent:
     time = UTCDateTime(value=datetime(2024, 1, 1, 10, tzinfo=timezone.utc))
@@ -89,6 +91,7 @@ def test_service_rolls_back_event_when_later_step_fails() -> None:
 
 
 @pytest.mark.integration
+@POSTGRES_ONLY
 def test_service_handles_real_concurrent_identical_submissions() -> None:
     payment, order, merchant, customer, event_id = PaymentId.generate(), OrderId.generate(), MerchantId.generate(), CustomerId.generate(), EventId.generate()
     event = created(payment, order, merchant, customer, event_id=event_id)

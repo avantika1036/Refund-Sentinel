@@ -738,3 +738,44 @@ def test_neighborhood_active_refund_count_counts_unique_customers() -> None:
     # Total: 2 unique customers
     assert features.neighborhood_active_refund_count == 2, \
         f"Expected 2 unique customers with refunds, got {features.neighborhood_active_refund_count}"
+
+
+def test_delivery_after_refund_is_not_exposed_as_future_latency() -> None:
+    """A later delivery must not leak its exact timestamp into the refund decision."""
+    from datetime import datetime, timedelta, timezone
+
+    from backend.app.domain.enums import PaymentStatus, RefundStatus
+    from backend.app.finance.aggregates import OrderState, PaymentState, RefundState
+    from backend.app.finance.types import ReconstructionSnapshot
+    from backend.app.risk.features.individual import IndividualFeatureExtractor
+
+    customer_id = CustomerId.generate()
+    payment_id = PaymentId.generate()
+    order_id = OrderId.generate()
+    refund_id = RefundId.generate()
+    now = datetime(2024, 1, 1, tzinfo=timezone.utc)
+
+    snapshot = ReconstructionSnapshot(
+        payments={payment_id: PaymentState(
+            payment_id=payment_id, order_id=order_id, customer_id=customer_id,
+            merchant_id=CustomerId.generate(), authorised_amount=Money.of_paise(1000),
+            status=PaymentStatus.CAPTURED, created_at=UTCDateTime(value=now),
+            captured_amount=Money.of_paise(1000),
+            captured_at=UTCDateTime(value=now + timedelta(minutes=5)),
+        )},
+        refunds={refund_id: RefundState(
+            refund_id=refund_id, payment_id=payment_id, customer_id=customer_id,
+            order_id=order_id, merchant_id=CustomerId.generate(),
+            requested_amount=Money.of_paise(500), status=RefundStatus.REQUESTED,
+            requested_at=UTCDateTime(value=now + timedelta(hours=2)),
+        )},
+        orders={order_id: OrderState(
+            order_id=order_id, merchant_id=CustomerId.generate(), customer_id=customer_id,
+            amount=Money.of_paise(1000), created_at=UTCDateTime(value=now),
+            delivered_at=UTCDateTime(value=now + timedelta(hours=10)),
+        )},
+        reconstruction_ordinal=1, event_count=3,
+    )
+
+    features = IndividualFeatureExtractor(snapshot).extract_for_refund(refund_id)
+    assert features.delivery_to_refund_latency_hrs is None

@@ -7,7 +7,8 @@ from backend.app.persistence.ingestion_service import IngestionService
 
 def test_submission_ordinal_uses_durable_database_sequence() -> None:
     result = Mock(); result.scalar_one.return_value = 42
-    session = Mock(); session.execute.return_value = result
+    bind = Mock(); bind.dialect.name = "postgresql"
+    session = Mock(); session.get_bind.return_value = bind; session.execute.return_value = result
 
     assert IngestionService._next_submission_ordinal(session) == 42
     session.execute.assert_called_once()

@@ -33,6 +33,7 @@ def make_features(
         capture_to_refund_latency_hrs=capture_latency,
         order_to_refund_latency_hrs=10.0,
         delivery_to_refund_latency_hrs=delivery_latency,
+        refund_requested_before_delivery=(None if delivery_latency is None else delivery_latency < 0),
         refund_amount_fraction=refund_fraction,
         is_full_refund=is_full_refund,
         customer_refund_rate_90d=refund_rate,
@@ -115,8 +116,8 @@ def test_r02_triggers_when_refund_precedes_delivery() -> None:
     )
 
     assert result.triggered is True
-    assert result.evidence_type is EvidenceType.LATENCY_HOURS
-    assert result.evidence_value == -2.0
+    assert result.evidence_type is EvidenceType.BOOLEAN
+    assert result.evidence_value is True
 
 
 def test_r03_requires_exactly_one_refund_for_payment() -> None:

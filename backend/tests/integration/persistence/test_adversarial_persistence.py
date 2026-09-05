@@ -43,6 +43,8 @@ from backend.app.persistence.repositories.events import EventRepository, calcula
 def tables() -> None:
     Base.metadata.create_all(engine, checkfirst=True)
 
+POSTGRES_ONLY = pytest.mark.skipif(engine.dialect.name != "postgresql", reason="requires PostgreSQL transaction/concurrency semantics")
+
 
 def payment_created(
     payment_id: PaymentId,
@@ -81,6 +83,7 @@ def cleanup_event(event_id: EventId) -> None:
 
 
 @pytest.mark.integration
+@POSTGRES_ONLY
 def test_concurrent_identical_event_submission() -> None:
     """Two independent PostgreSQL sessions submit the same event_id and identical payload concurrently.
     
@@ -142,6 +145,7 @@ def test_concurrent_identical_event_submission() -> None:
 
 
 @pytest.mark.integration
+@POSTGRES_ONLY
 def test_concurrent_same_event_id_different_payloads() -> None:
     """Two independent sessions concurrently submit the same event_id but different business payloads.
     
@@ -802,6 +806,7 @@ def test_sequence_ordinal_uniqueness_across_sessions() -> None:
 
 
 @pytest.mark.integration
+@POSTGRES_ONLY
 def test_concurrent_ordinal_reservation() -> None:
     """Verify concurrent submissions reserve unique PostgreSQL sequence ordinals.
 
