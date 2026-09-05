@@ -1053,6 +1053,101 @@ class AS03_SharedPaymentDeviceRing(_ParameterizedLifecycleScenario):
         return SimulationOutput(events=self._events, labels=self._labels, seed=self._seed)
 
 
+class AS04_IsolatedRefundChurn(_ParameterizedLifecycleScenario):
+    """AS-04: high-velocity single-account refund churn without shared topology.
+
+    This held-out abuse family is intentionally structurally isolated. It tests
+    whether individual behavior and financial/temporal signals can detect abuse
+    that a graph-only baseline cannot observe.
+    """
+
+    def generate(
+        self,
+        num_customers: int = 3,
+        refunds_per_customer: int = 7,
+    ) -> SimulationOutput:
+        merchant_id = MerchantId.generate()
+        base_time = datetime(2024, 6, 1, tzinfo=timezone.utc)
+        for customer_idx in range(num_customers):
+            customer_id = CustomerId.generate()
+            for refund_idx in range(refunds_per_customer):
+                self._emit_lifecycle(
+                    scenario_type=ScenarioType.AS04_ISOLATED_REFUND_CHURN,
+                    classification=LabelClassification.ABUSE,
+                    customer_id=customer_id,
+                    merchant_id=merchant_id,
+                    # Deliberately unique identifiers keep each customer's
+                    # refund behavior structurally isolated from other accounts.
+                    address_id=AddressId.generate(),
+                    device_id=DeviceId.generate(),
+                    order_time=base_time + timedelta(
+                        days=customer_idx * 3,
+                        hours=refund_idx * 4,
+                    ),
+                    amount_paise=self._rng.randint(18_000, 48_000),
+                    refund_fraction=self._rng.uniform(0.95, 1.0),
+                    refund_delay=timedelta(hours=self._rng.randint(1, 4)),
+                    reason_code=RefundReasonCode.DEFECTIVE,
+                    shipping_delay=timedelta(hours=self._rng.randint(1, 3)),
+                    delivery_delay=timedelta(hours=self._rng.randint(3, 8)),
+                    description_prefix="AS-04 isolated refund churn",
+                )
+        return SimulationOutput(events=self._events, labels=self._labels, seed=self._seed)
+
+
+class LL03_SharedHousehold(_ParameterizedLifecycleScenario):
+    """LL-03: legitimate household sharing device and delivery address.
+
+    This held-out negative control intentionally resembles a structural cluster
+    while keeping refund behavior sparse and naturally distributed. It prevents
+    a graph-only baseline from appearing perfect merely because every connected
+    component is labelled abusive.
+    """
+
+    def generate(
+        self,
+        num_customers: int = 4,
+        orders_per_customer: int = 7,
+    ) -> SimulationOutput:
+        merchant_id = MerchantId.generate()
+        base_time = datetime(2023, 5, 1, tzinfo=timezone.utc)
+        shared_device_id = DeviceId.generate()
+        shared_address_id = AddressId.generate()
+        reasons = [
+            RefundReasonCode.DEFECTIVE,
+            RefundReasonCode.WRONG_ITEM,
+            RefundReasonCode.DAMAGED_IN_TRANSIT,
+        ]
+        for customer_idx in range(num_customers):
+            customer_id = CustomerId.generate()
+            for order_idx in range(orders_per_customer):
+                should_refund = order_idx == 5
+                self._emit_lifecycle(
+                    scenario_type=ScenarioType.LL03_SHARED_HOUSEHOLD,
+                    classification=LabelClassification.LEGITIMATE,
+                    customer_id=customer_id,
+                    merchant_id=merchant_id,
+                    address_id=shared_address_id,
+                    device_id=shared_device_id,
+                    order_time=base_time + timedelta(
+                        days=customer_idx * 5 + order_idx * 9
+                    ),
+                    amount_paise=self._rng.randint(4_000, 40_000),
+                    refund_fraction=(
+                        self._rng.uniform(0.25, 0.6) if should_refund else None
+                    ),
+                    refund_delay=(
+                        timedelta(days=self._rng.randint(8, 24))
+                        if should_refund else None
+                    ),
+                    reason_code=self._rng.choice(reasons) if should_refund else None,
+                    shipping_delay=timedelta(hours=self._rng.randint(12, 36)),
+                    delivery_delay=timedelta(days=self._rng.randint(2, 7)),
+                    description_prefix="LL-03 shared legitimate household",
+                )
+        return SimulationOutput(events=self._events, labels=self._labels, seed=self._seed)
+
+
 class LL02_FrequentShopper(_ParameterizedLifecycleScenario):
     """LL-02: frequent legitimate shoppers with substantial normal history."""
 
@@ -1098,5 +1193,7 @@ class LL02_FrequentShopper(_ParameterizedLifecycleScenario):
 AS01_DENSE_COORDINATED_REFUND_RING = AS01_DenseCoordinatedRefundRing
 AS02_VELOCITY_REFUND_ABUSE = AS02_VelocityRefundAbuse
 AS03_SHARED_PAYMENT_DEVICE_RING = AS03_SharedPaymentDeviceRing
+AS04_ISOLATED_REFUND_CHURN = AS04_IsolatedRefundChurn
 LL01_LEGITIMATE_FAMILY = LL01_LegitimateFamily
 LL02_FREQUENT_SHOPPER = LL02_FrequentShopper
+LL03_SHARED_HOUSEHOLD = LL03_SharedHousehold
