@@ -4,24 +4,22 @@
 
 ## Table of Contents
 
-## Table of Contents
-
-- [Evaluation objective](#1-evaluation-objective)
-- [Experimental design](#2-experimental-design)
-- [Dataset construction](#3-dataset-construction)
-- [Train / validation / held-out protocol](#4-train--validation--held-out-protocol)
-- [Baselines](#5-baselines)
-- [Operating thresholds](#6-operating-thresholds)
-- [Final held-out results](#7-final-held-out-results)
-- [Financial exposure results](#8-financial-exposure-results)
-- [False-positive cost sensitivity](#9-false-positive-cost-sensitivity)
-- [Per-scenario results](#10-per-scenario-results)
-- [Interpretation](#11-interpretation)
-- [What the benchmark supports](#12-what-the-benchmark-supports)
-- [What the benchmark does not support](#13-what-the-benchmark-does-not-support)
-- [Metric coverage and caveats](#14-metric-coverage-and-caveats)
-- [Reproduction](#15-reproduction)
-- [Reporting checklist](#16-reporting-checklist)
+- [Evaluation objective](#evaluation-objective)
+- [Experimental design](#experimental-design)
+- [Dataset construction](#dataset-construction)
+- [Train / validation / held-out protocol](#train--validation--held-out-protocol)
+- [Baselines](#baselines)
+- [Operating thresholds](#operating-thresholds)
+- [Final held-out results](#final-held-out-results)
+- [Financial exposure results](#financial-exposure-results)
+- [False-positive cost sensitivity](#false-positive-cost-sensitivity)
+- [Per-scenario results](#per-scenario-results)
+- [Interpretation](#interpretation)
+- [What the benchmark supports](#what-the-benchmark-supports)
+- [What the benchmark does not support](#what-the-benchmark-does-not-support)
+- [Metric coverage and caveats](#metric-coverage-and-caveats)
+- [Reproduction](#reproduction)
+- [Reporting checklist](#reporting-checklist)
 
 
 ---
