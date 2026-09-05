@@ -75,31 +75,10 @@ The prototype focuses on **coordinated post-payment refund abuse**.
 
 ## 3. Architecture overview
 
-```mermaid
-flowchart TD
-    A[Simulator / Razorpay Test Mode] --> B[Event Ingestion]
-    B --> C[Event Ledger]
-    C --> D[Financial State Reconstruction]
-    D --> E[Refund Lifecycle Features]
-    D --> F[Structural Graph]
-    F --> G[Connected Components]
-    G --> H[Behavioral Confirmation]
-    E --> I[Feature Assembly]
-    H --> I
-    I --> J[Logistic Risk Model]
-    E --> K[Deterministic Rules]
-    K --> L[Operational Risk Score]
-    H --> L
-    J --> M[Additional ML Signal]
-    L --> N[Exposure Engine]
-    M --> N
-    L --> O[Evidence Bundle]
-    N --> O
-    O --> P[LLM / Heuristic Explanation]
-    O --> Q[Investigation API]
-    P --> Q
-    Q --> R[React Risk Console]
-```
+<img width="612" height="642" alt="image" src="https://github.com/user-attachments/assets/60af25a2-4577-4790-8ddb-58e154a635cf" />
+
+
+---
 
 ### Architectural authority order
 
