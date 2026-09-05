@@ -1,14 +1,11 @@
 # =============================================================================
 # Refund Sentinel — Makefile
 # =============================================================================
-# Targets marked [FUTURE] depend on files not yet implemented.
-# They are listed here for planning purposes and will fail if run now.
-# =============================================================================
 
 .DEFAULT_GOAL := help
 
 # Detect the Python executable (prefer python3)
-PYTHON := python3
+PYTHON := python
 PIP    := pip
 
 # Backend source root
@@ -34,15 +31,15 @@ help:
 	@echo "    install        Install backend dependencies into the active virtualenv"
 	@echo ""
 	@echo "  Testing"
-	@echo "    test           Run the test suite [FUTURE — no tests yet]"
-	@echo "    test-unit      Run unit tests only [FUTURE]"
-	@echo "    test-int       Run integration tests only [FUTURE]"
+	@echo "    test           Run full test suite"
+	@echo "    test-unit      Run unit tests only"
+	@echo "    test-int       Run integration tests only"
 	@echo ""
-	@echo "  Data and training [FUTURE]"
-	@echo "    seed-demo      Generate and load the demo dataset"
-	@echo "    gen-datasets   Generate training and evaluation datasets"
-	@echo "    train          Train the ML model"
-	@echo "    evaluate       Run the full evaluation suite"
+	@echo "  Data and Training"
+	@echo "    seed-demo      Populate database with 5 canonical demo scenarios"
+	@echo "    gen-datasets   Generate training, validation, and held-out test datasets"
+	@echo "    train          Train the supervised ML model"
+	@echo "    evaluate       Run the comparative 3-baseline evaluation suite"
 	@echo ""
 	@echo "  Cleanup"
 	@echo "    clean          Remove Python cache files"
@@ -97,39 +94,35 @@ install:
 
 .PHONY: test
 test:
-	@echo "[FUTURE] No tests exist yet. This target will run pytest once Phase 2 is implemented."
-	@echo "Run after Phase 2: pytest backend/tests/"
+	pytest $(BACKEND)/tests/ -v
 
 .PHONY: test-unit
 test-unit:
-	@echo "[FUTURE] pytest backend/tests/unit/"
+	pytest $(BACKEND)/tests/unit/ -v
 
 .PHONY: test-int
 test-int:
-	@echo "[FUTURE] pytest backend/tests/integration/"
+	pytest $(BACKEND)/tests/integration/ -v
 
 # =============================================================================
-# DATA AND TRAINING (FUTURE)
+# DATA AND TRAINING
 # =============================================================================
 
 .PHONY: seed-demo
 seed-demo:
-	$(PYTHON) -m backend.app.simulator.cli
+	$(PYTHON) scripts/seed_demo.py
 
 .PHONY: gen-datasets
 gen-datasets:
-	@echo "[FUTURE] $(PYTHON) scripts/generate_datasets.py"
-	@echo "Implement after Phase 8 (full simulator)."
+	$(PYTHON) scripts/generate_datasets.py
 
 .PHONY: train
 train:
-	@echo "[FUTURE] $(PYTHON) scripts/train_model.py"
-	@echo "Implement after Phase 9 (ML model)."
+	$(PYTHON) scripts/train_model.py
 
 .PHONY: evaluate
 evaluate:
-	@echo "[FUTURE] $(PYTHON) scripts/run_evaluation.py"
-	@echo "Implement after Phase 10 (evaluation framework)."
+	$(PYTHON) scripts/run_evaluation.py
 
 # =============================================================================
 # CLEANUP
