@@ -1,0 +1,166 @@
+{
+  "summary": {
+    "baseline_a_individual_only": {
+      "precision": 1.0,
+      "recall": 0.9487,
+      "f1_score": 0.9737,
+      "accuracy": 0.9733,
+      "true_positive": 37,
+      "true_negative": 36,
+      "false_positive": 0,
+      "false_negative": 2,
+      "review_volume": 37,
+      "operating_threshold": 0.5,
+      "loss_prevented_paise": 972682,
+      "loss_prevented_inr": 9726.82,
+      "false_positive_flagged_amount_paise": 0,
+      "false_positive_flagged_amount_inr": 0.0,
+      "total_flagged_amount_paise": 972682,
+      "total_flagged_amount_inr": 9726.82
+    },
+    "baseline_b_graph_structural_only": {
+      "precision": 1.0,
+      "recall": 0.4615,
+      "f1_score": 0.6316,
+      "accuracy": 0.72,
+      "true_positive": 18,
+      "true_negative": 36,
+      "false_positive": 0,
+      "false_negative": 21,
+      "review_volume": 18,
+      "operating_threshold": 5,
+      "loss_prevented_paise": 350659,
+      "loss_prevented_inr": 3506.59,
+      "false_positive_flagged_amount_paise": 0,
+      "false_positive_flagged_amount_inr": 0.0,
+      "total_flagged_amount_paise": 350659,
+      "total_flagged_amount_inr": 3506.59
+    },
+    "baseline_c_full_multi_signal": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "accuracy": 1.0,
+      "true_positive": 39,
+      "true_negative": 36,
+      "false_positive": 0,
+      "false_negative": 0,
+      "review_volume": 39,
+      "operating_threshold": 0.5,
+      "loss_prevented_paise": 996208,
+      "loss_prevented_inr": 9962.08,
+      "false_positive_flagged_amount_paise": 0,
+      "false_positive_flagged_amount_inr": 0.0,
+      "total_flagged_amount_paise": 996208,
+      "total_flagged_amount_inr": 9962.08
+    }
+  },
+  "validation_selection": {
+    "baseline_a": {
+      "selected_threshold": 0.5,
+      "f1_score": 1.0
+    },
+    "baseline_b": {
+      "selected_cluster_threshold": 5,
+      "f1_score": 0.5556
+    },
+    "baseline_c": {
+      "selected_threshold": 0.5,
+      "f1_score": 1.0
+    }
+  },
+  "evaluation_protocol": {
+    "train_scenarios": [
+      "AS01",
+      "AS02",
+      "LL01"
+    ],
+    "validation_scenarios": [
+      "AS01",
+      "AS02",
+      "LL01"
+    ],
+    "heldout_test_scenarios": [
+      "AS03",
+      "AS04",
+      "LL02",
+      "LL03"
+    ],
+    "heldout_design": "AS03 tests structural coordination detection; AS04 tests isolated behavioral abuse; LL03 is a legitimate shared-household structural lookalike.",
+    "background_population_present_in_all_partitions": true,
+    "model_selection_note": "Probability and structural thresholds are selected using only the validation partition. Held-out labels are used exactly once for final reporting."
+  },
+  "total_test_exposure_inr": 9962.08,
+  "per_scenario_metrics": {
+    "AS03_SHARED_PAYMENT_DEVICE_RING": {
+      "total_cases": 18,
+      "abuse_cases": 18,
+      "legitimate_cases": 0,
+      "baseline_a": {
+        "recall": 0.8889
+      },
+      "baseline_b": {
+        "recall": 1.0
+      },
+      "baseline_c": {
+        "recall": 1.0
+      }
+    },
+    "AS04_ISOLATED_REFUND_CHURN": {
+      "total_cases": 21,
+      "abuse_cases": 21,
+      "legitimate_cases": 0,
+      "baseline_a": {
+        "recall": 1.0
+      },
+      "baseline_b": {
+        "recall": 0.0
+      },
+      "baseline_c": {
+        "recall": 1.0
+      }
+    },
+    "BACKGROUND": {
+      "total_cases": 22,
+      "abuse_cases": 0,
+      "legitimate_cases": 22,
+      "baseline_a": {
+        "false_positive_rate": 0.0
+      },
+      "baseline_b": {
+        "false_positive_rate": 0.0
+      },
+      "baseline_c": {
+        "false_positive_rate": 0.0
+      }
+    },
+    "LL02_FREQUENT_SHOPPER": {
+      "total_cases": 10,
+      "abuse_cases": 0,
+      "legitimate_cases": 10,
+      "baseline_a": {
+        "false_positive_rate": 0.0
+      },
+      "baseline_b": {
+        "false_positive_rate": 0.0
+      },
+      "baseline_c": {
+        "false_positive_rate": 0.0
+      }
+    },
+    "LL03_SHARED_HOUSEHOLD": {
+      "total_cases": 4,
+      "abuse_cases": 0,
+      "legitimate_cases": 4,
+      "baseline_a": {
+        "false_positive_rate": 0.0
+      },
+      "baseline_b": {
+        "false_positive_rate": 0.0
+      },
+      "baseline_c": {
+        "false_positive_rate": 0.0
+      }
+    }
+  }
+}
