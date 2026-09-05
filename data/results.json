@@ -2,57 +2,81 @@
   "summary": {
     "baseline_a_individual_only": {
       "precision": 1.0,
-      "recall": 0.9487,
-      "f1_score": 0.9737,
-      "accuracy": 0.9733,
-      "true_positive": 37,
-      "true_negative": 36,
+      "recall": 0.8718,
+      "f1_score": 0.9315,
+      "accuracy": 0.9306,
+      "true_positive": 34,
+      "true_negative": 33,
       "false_positive": 0,
-      "false_negative": 2,
-      "review_volume": 37,
+      "false_negative": 5,
+      "false_positive_rate": 0.0,
+      "false_negative_rate": 0.1282,
       "operating_threshold": 0.5,
-      "loss_prevented_paise": 972682,
-      "loss_prevented_inr": 9726.82,
+      "abuse_exposure_captured_paise": 968037,
+      "abuse_exposure_captured_inr": 9680.37,
+      "missed_abuse_exposure_paise": 69774,
+      "missed_abuse_exposure_inr": 697.74,
+      "total_abuse_exposure_paise": 1037811,
+      "total_abuse_exposure_inr": 10378.11,
+      "abuse_exposure_capture_rate": 0.9328,
       "false_positive_flagged_amount_paise": 0,
       "false_positive_flagged_amount_inr": 0.0,
-      "total_flagged_amount_paise": 972682,
-      "total_flagged_amount_inr": 9726.82
+      "false_positive_count": 0,
+      "review_volume": 34,
+      "assumed_fp_cost_per_case_inr": 200.0,
+      "false_positive_operational_cost_inr": 0.0
     },
     "baseline_b_graph_structural_only": {
-      "precision": 1.0,
-      "recall": 0.4615,
-      "f1_score": 0.6316,
-      "accuracy": 0.72,
-      "true_positive": 18,
-      "true_negative": 36,
-      "false_positive": 0,
-      "false_negative": 21,
-      "review_volume": 18,
-      "operating_threshold": 5,
-      "loss_prevented_paise": 350659,
-      "loss_prevented_inr": 3506.59,
-      "false_positive_flagged_amount_paise": 0,
-      "false_positive_flagged_amount_inr": 0.0,
-      "total_flagged_amount_paise": 350659,
-      "total_flagged_amount_inr": 3506.59
+      "precision": 0.8095,
+      "recall": 0.4359,
+      "f1_score": 0.5667,
+      "accuracy": 0.6389,
+      "true_positive": 17,
+      "true_negative": 29,
+      "false_positive": 4,
+      "false_negative": 22,
+      "false_positive_rate": 0.1212,
+      "false_negative_rate": 0.5641,
+      "operating_threshold": 2,
+      "abuse_exposure_captured_paise": 311795,
+      "abuse_exposure_captured_inr": 3117.95,
+      "missed_abuse_exposure_paise": 726016,
+      "missed_abuse_exposure_inr": 7260.16,
+      "total_abuse_exposure_paise": 1037811,
+      "total_abuse_exposure_inr": 10378.11,
+      "abuse_exposure_capture_rate": 0.3004,
+      "false_positive_flagged_amount_paise": 37929,
+      "false_positive_flagged_amount_inr": 379.29,
+      "false_positive_count": 4,
+      "review_volume": 21,
+      "assumed_fp_cost_per_case_inr": 200.0,
+      "false_positive_operational_cost_inr": 800.0
     },
     "baseline_c_full_multi_signal": {
       "precision": 1.0,
-      "recall": 1.0,
-      "f1_score": 1.0,
-      "accuracy": 1.0,
-      "true_positive": 39,
-      "true_negative": 36,
+      "recall": 0.9744,
+      "f1_score": 0.987,
+      "accuracy": 0.9861,
+      "true_positive": 38,
+      "true_negative": 33,
       "false_positive": 0,
-      "false_negative": 0,
-      "review_volume": 39,
+      "false_negative": 1,
+      "false_positive_rate": 0.0,
+      "false_negative_rate": 0.0256,
       "operating_threshold": 0.5,
-      "loss_prevented_paise": 996208,
-      "loss_prevented_inr": 9962.08,
+      "abuse_exposure_captured_paise": 1025654,
+      "abuse_exposure_captured_inr": 10256.54,
+      "missed_abuse_exposure_paise": 12157,
+      "missed_abuse_exposure_inr": 121.57,
+      "total_abuse_exposure_paise": 1037811,
+      "total_abuse_exposure_inr": 10378.11,
+      "abuse_exposure_capture_rate": 0.9883,
       "false_positive_flagged_amount_paise": 0,
       "false_positive_flagged_amount_inr": 0.0,
-      "total_flagged_amount_paise": 996208,
-      "total_flagged_amount_inr": 9962.08
+      "false_positive_count": 0,
+      "review_volume": 38,
+      "assumed_fp_cost_per_case_inr": 200.0,
+      "false_positive_operational_cost_inr": 0.0
     }
   },
   "validation_selection": {
@@ -61,8 +85,8 @@
       "f1_score": 1.0
     },
     "baseline_b": {
-      "selected_cluster_threshold": 5,
-      "f1_score": 0.5556
+      "selected_cluster_threshold": 2,
+      "f1_score": 0.5185
     },
     "baseline_c": {
       "selected_threshold": 0.5,
@@ -86,51 +110,69 @@
       "LL02",
       "LL03"
     ],
-    "heldout_design": "AS03 tests structural coordination detection; AS04 tests isolated behavioral abuse; LL03 is a legitimate shared-household structural lookalike.",
-    "background_population_present_in_all_partitions": true,
-    "model_selection_note": "Probability and structural thresholds are selected using only the validation partition. Held-out labels are used exactly once for final reporting."
+    "heldout_design": "AS03 tests an unseen shared-attribute coordination pattern; AS04 tests isolated high-velocity abuse; LL02 tests established legitimate high activity; LL03 is a larger legitimate shared-household structural lookalike.",
+    "threshold_selection": "Validation only; held-out labels are never used for threshold selection.",
+    "point_in_time_features": true,
+    "model_selection_note": "The held-out set is used once for final comparative reporting."
   },
-  "total_test_exposure_inr": 9962.08,
+  "false_positive_cost_sensitivity": {
+    "baseline_a_individual_only": {
+      "fp_cost_50_inr": 0.0,
+      "fp_cost_200_inr": 0.0,
+      "fp_cost_500_inr": 0.0
+    },
+    "baseline_b_graph_structural_only": {
+      "fp_cost_50_inr": 200.0,
+      "fp_cost_200_inr": 800.0,
+      "fp_cost_500_inr": 2000.0
+    },
+    "baseline_c_full_multi_signal": {
+      "fp_cost_50_inr": 0.0,
+      "fp_cost_200_inr": 0.0,
+      "fp_cost_500_inr": 0.0
+    }
+  },
+  "total_test_abuse_exposure_inr": 10378.11,
   "per_scenario_metrics": {
     "AS03_SHARED_PAYMENT_DEVICE_RING": {
       "total_cases": 18,
       "abuse_cases": 18,
       "legitimate_cases": 0,
-      "baseline_a": {
-        "recall": 0.8889
+      "baseline_a_recall_or_fpr": {
+        "recall": 0.7222
       },
-      "baseline_b": {
-        "recall": 1.0
+      "baseline_b_recall_or_fpr": {
+        "recall": 0.9444
       },
-      "baseline_c": {
-        "recall": 1.0
+      "baseline_c_recall_or_fpr": {
+        "recall": 0.9444
       }
     },
     "AS04_ISOLATED_REFUND_CHURN": {
       "total_cases": 21,
       "abuse_cases": 21,
       "legitimate_cases": 0,
-      "baseline_a": {
+      "baseline_a_recall_or_fpr": {
         "recall": 1.0
       },
-      "baseline_b": {
+      "baseline_b_recall_or_fpr": {
         "recall": 0.0
       },
-      "baseline_c": {
+      "baseline_c_recall_or_fpr": {
         "recall": 1.0
       }
     },
     "BACKGROUND": {
-      "total_cases": 22,
+      "total_cases": 17,
       "abuse_cases": 0,
-      "legitimate_cases": 22,
-      "baseline_a": {
+      "legitimate_cases": 17,
+      "baseline_a_recall_or_fpr": {
         "false_positive_rate": 0.0
       },
-      "baseline_b": {
+      "baseline_b_recall_or_fpr": {
         "false_positive_rate": 0.0
       },
-      "baseline_c": {
+      "baseline_c_recall_or_fpr": {
         "false_positive_rate": 0.0
       }
     },
@@ -138,27 +180,27 @@
       "total_cases": 10,
       "abuse_cases": 0,
       "legitimate_cases": 10,
-      "baseline_a": {
+      "baseline_a_recall_or_fpr": {
         "false_positive_rate": 0.0
       },
-      "baseline_b": {
+      "baseline_b_recall_or_fpr": {
         "false_positive_rate": 0.0
       },
-      "baseline_c": {
+      "baseline_c_recall_or_fpr": {
         "false_positive_rate": 0.0
       }
     },
     "LL03_SHARED_HOUSEHOLD": {
-      "total_cases": 4,
+      "total_cases": 6,
       "abuse_cases": 0,
-      "legitimate_cases": 4,
-      "baseline_a": {
+      "legitimate_cases": 6,
+      "baseline_a_recall_or_fpr": {
         "false_positive_rate": 0.0
       },
-      "baseline_b": {
-        "false_positive_rate": 0.0
+      "baseline_b_recall_or_fpr": {
+        "false_positive_rate": 0.6667
       },
-      "baseline_c": {
+      "baseline_c_recall_or_fpr": {
         "false_positive_rate": 0.0
       }
     }

@@ -14,9 +14,11 @@ from pathlib import Path
 
 from sqlalchemy import delete
 
-ROOT = Path(__file__).resolve().parent.parent
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+BACKEND_ROOT = PROJECT_ROOT / "backend"
+for path in (PROJECT_ROOT, BACKEND_ROOT):
+    if str(path) not in sys.path:
+        sys.path.insert(0, str(path))
 
 from backend.app.persistence.database import SessionLocal, engine
 from backend.app.persistence.models import (
