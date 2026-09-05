@@ -4,24 +4,25 @@
 
 ## Table of Contents
 
-- [1. Synthetic data](#1-synthetic-data)
-[1. Synthetic data](#1-synthetic-data)  
-[2. Generalization](#2-generalization)  
-[3. Model calibration](#3-model-calibration)  
-[4. Evasion](#4-evasion)  
-[5. Graph and identifier coverage](#5-graph-and-identifier-coverage)  
-[6. Cold start](#6-cold-start)  
-[7. Exposure metrics](#7-exposure-metrics)  
-[8. False-positive economics](#8-false-positive-economics)  
-[9. LLM limitations](#9-llm-limitations)  
-[10. Prompt injection and untrusted text](#10-prompt-injection-and-untrusted-text)  
-[11. Webhook and event-system limitations](#11-webhook-and-event-system-limitations)  
-[12. Authentication and authorization](#12-authentication-and-authorization)  
-[13. Production data governance](#13-production-data-governance)  
-[14. Fairness](#14-fairness)  
-[15. Monitoring and drift](#15-monitoring-and-drift)  
-[16. Evaluation gaps](#16-evaluation-gaps)  
-[17. What we would build next](#17-what-we-would-build-next)  
+- [Synthetic data](#synthetic-data)
+- [Generalization](#generalization)
+- [Model calibration](#model-calibration)
+- [Evasion](#evasion)
+- [Graph and identifier coverage](#graph-and-identifier-coverage)
+- [Cold start](#cold-start)
+- [Exposure metrics](#exposure-metrics)
+- [False-positive economics](#false-positive-economics)
+- [LLM limitations](#llm-limitations)
+- [Prompt injection and untrusted text](#prompt-injection-and-untrusted-text)
+- [Webhook and event-system limitations](#webhook-and-event-system-limitations)
+- [Authentication and authorization](#authentication-and-authorization)
+- [Production data governance](#production-data-governance)
+- [Fairness](#fairness)
+- [Monitoring and drift](#monitoring-and-drift)
+- [Evaluation gaps](#evaluation-gaps)
+- [What we would build next](#what-we-would-build-next)
+
+
 
 ---
 
