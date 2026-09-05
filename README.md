@@ -206,30 +206,7 @@ The benchmark is designed to expose both failure modes: individual-only misses c
 
 ## Product flow
 
-```mermaid
-flowchart LR
-    A[Payment / Refund Events] --> B[Event Ingestion]
-    B --> C[Financial State Reconstruction]
-    C --> D[Lifecycle Features]
-    C --> E[Structural Graph]
-    E --> F[Connected Components]
-    F --> G[Behavioral Confirmation]
-    D --> H[ML Features]
-    G --> H
-    H --> I[Risk Model]
-    D --> J[Deterministic Rules]
-    J --> K[Operational Risk]
-    G --> K
-    I --> L[Additional ML Signal]
-    K --> M[Exposure Engine]
-    L --> M
-    K --> N[Evidence Bundle]
-    M --> N
-    N --> O[LLM Summary / Fallback]
-    N --> P[Investigation API]
-    O --> P
-    P --> Q[Risk Operations Console]
-```
+<img width="591" height="665" alt="image" src="https://github.com/user-attachments/assets/c175720c-5da6-4644-b364-c02a1643fabf" />
 
 ---
 
@@ -252,29 +229,8 @@ flowchart LR
 
 ### Data flow
 
-```text
-Raw event
-   ↓
-Validation / normalization
-   ↓
-Event ledger
-   ↓
-Point-in-time financial reconstruction
-   ↓
-┌────────────────────────────────────┐
-│                                    │
-│  lifecycle + behavior              │  structural relationships
-│                                    │
-└───────────────┬────────────────────┘
-                ↓
-       behavioral confirmation
-                ↓
-        risk / priority layer
-                ↓
-        exposure + evidence
-                ↓
-        investigator interface
-```
+<img width="584" height="673" alt="image" src="https://github.com/user-attachments/assets/30d8d8d4-88b4-4e43-b6d9-efaa9b179eb2" />
+
 
 For the deeper system design, see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
