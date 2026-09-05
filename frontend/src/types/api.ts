@@ -157,6 +157,24 @@ export interface InvestigationQueueResponse {
   metrics: QueueMetricsResponse;
 }
 
+export interface ComparativeBaselineMetrics {
+  precision: number;
+  recall: number;
+  f1_score: number;
+  accuracy: number;
+  true_positive: number;
+  true_negative: number;
+  false_positive: number;
+  false_negative: number;
+  review_volume: number;
+  abuse_exposure_captured_inr: number;
+  abuse_exposure_capture_rate: number;
+  total_test_abuse_exposure_inr: number;
+  false_positive_flagged_amount_inr: number;
+  total_flagged_amount_inr: number;
+  operating_threshold: number | null;
+}
+
 export interface ModelEvaluationResponse {
   model_available: boolean;
   status: string;
@@ -164,6 +182,9 @@ export interface ModelEvaluationResponse {
   feature_count: number | null;
   evaluation_metrics_available: boolean;
   metrics: Record<string, number>;
+  benchmark_available: boolean;
+  benchmark_summary: Record<string, ComparativeBaselineMetrics>;
+  benchmark_protocol: Record<string, unknown>;
   data_note: string;
 }
 

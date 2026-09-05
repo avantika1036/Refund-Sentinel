@@ -53,6 +53,9 @@ function App() {
   }, []);
 
   useEffect(() => {
+    // This effect intentionally kicks off external I/O on mount; the async
+    // loader owns the resulting loading/error/data state transitions.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadQueue();
     getHealth()
       .then((response) => setHealth(response.status === "ok" ? "ok" : "unavailable"))
@@ -61,6 +64,8 @@ function App() {
 
   useEffect(() => {
     if (activeView === "evaluation" && !modelData && !modelLoading) {
+      // This effect intentionally kicks off external I/O when the view opens.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       void loadModelData();
     }
   }, [activeView, loadModelData, modelData, modelLoading]);
