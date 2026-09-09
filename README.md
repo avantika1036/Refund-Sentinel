@@ -206,7 +206,7 @@ The benchmark is designed to expose both failure modes: individual-only misses c
 
 ## Product flow
 
-<img width="591" height="665" alt="image" src="https://github.com/user-attachments/assets/c175720c-5da6-4644-b364-c02a1643fabf" />
+<img width="591" height="665" alt="image" src="https://github.com/user-attachments/assets/f4a16ad3-74ca-45e5-ae3d-ad47ffa09961" />
 
 ---
 
